@@ -1,6 +1,6 @@
 # graphrag-chinese
 
-microsoft graphrag for **Chinese**🇨🇳🇨🇳🇨🇳 using local serving llm and embedding which has openai compatible api  
+microsoft graphrag for **Chinese**🇨🇳🇨🇳🇨🇳 using local serving llm and embedding which has OpenAI compatible api  
 
 Forked from [microsoft/graphrag](https://github.com/microsoft/graphrag), current using version is **v0.3.3**  
 
@@ -15,7 +15,7 @@ Forked from [microsoft/graphrag](https://github.com/microsoft/graphrag), current
 GRAPHRAG_API_BASE=GRAPHRAG_API_BASE GRAPHRAG_INPUT_FILE_TYPE=text python index.py --root /working_root --input /input_files --lang chinese
 ```
 
-GRAPHRAG_API_BASE: openai compatible api llm server  
+GRAPHRAG_API_BASE: OpenAI compatible api llm server  
 GRAPHRAG_INPUT_FILE_TYPE: graphrag input type, text or csv  
 
 ```
@@ -33,7 +33,7 @@ body:
     "root": "/working_root",
     "method": "local",  # graphrag query method, can be local or global
     "query": "query prompt",
-    "graphrag_api_base": "",  # openai compatible api llm server
+    "graphrag_api_base": "",  # OpenAI compatible api llm server
     "graphrag_input_type": "text"  # graphrag input type, text or csv
 }
 ```
