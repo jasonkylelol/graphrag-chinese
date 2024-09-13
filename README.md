@@ -15,12 +15,14 @@ Forked from [microsoft/graphrag](https://github.com/microsoft/graphrag), current
 GRAPHRAG_API_BASE=GRAPHRAG_API_BASE GRAPHRAG_INPUT_FILE_TYPE=text python index.py --root /working_root --input /input_files --lang chinese
 ```
 
-GRAPHRAG_API_BASE # openai compatible api llm server  
-GRAPHRAG_INPUT_FILE_TYPE # graphrag input type, text or csv  
+GRAPHRAG_API_BASE: openai compatible api llm server  
+GRAPHRAG_INPUT_FILE_TYPE: graphrag input type, text or csv  
 
+```
 --root: working root directory  
 --input: input files directory for index  
 --lang: optional, default is english, chinese for specific document  
+```
 
 ### query
 when you finished index, use ```python serving.py``` to launch a server to do streaming query  
