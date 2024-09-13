@@ -1,0 +1,6 @@
+--index-url https://pypi.tuna.tsinghua.edu.cn/simple
+
+uvicorn
+fastapi
+graphrag==0.3.3
+sse_starlette
