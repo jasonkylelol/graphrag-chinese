@@ -38,7 +38,7 @@ body:
     "graphrag_input_type": "text"  # graphrag input type, text or csv
 }
 ```
-
+maybe you need to set the environment variable: GRAPHRAG_API_KEY  
 for example:  
 ```
 curl -N -X POST -H 'Content-Type:application/json' -d '{"root":"/workspace/test", "method":"local", "query":"why Musk is essential for OpenAI?","graphrag_api_base":"https://open.bigmodel.cn/api/paas/v4/", "graphrag_input_type":"text"}' 'http://192.168.0.20:38062/query-streaming'
