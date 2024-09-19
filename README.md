@@ -12,10 +12,11 @@ Forked from [microsoft/graphrag](https://github.com/microsoft/graphrag), current
 
 ### index
 ```
-GRAPHRAG_API_BASE=GRAPHRAG_API_BASE GRAPHRAG_INPUT_FILE_TYPE=text python index.py --root /working_root --input /input_files --lang chinese
+GRAPHRAG_API_BASE=GRAPHRAG_API_BASE GRAPHRAG_API_KEY=GRAPHRAG_API_KEY GRAPHRAG_INPUT_FILE_TYPE=text python index.py --root /working_root --input /input_files --lang chinese
 ```
 
 GRAPHRAG_API_BASE: OpenAI compatible api llm server  
+GRAPHRAG_API_KEY: OpenAI compatible api key  
 GRAPHRAG_INPUT_FILE_TYPE: graphrag input type, text or csv  
 
 ```
