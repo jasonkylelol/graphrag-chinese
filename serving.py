@@ -24,6 +24,7 @@ class GraphRAGQueryRequest(BaseModel):
     method: Literal["local", "global"]
     query: str
     graphrag_api_base: str
+    graphrag_api_base_embedding: str
     graphrag_input_type: str
 
 class GraphRAGQueryResponse(BaseModel):
@@ -59,7 +60,7 @@ def get_graphml(
         raise HTTPException(status_code=404, detail="File not found")
 
 
-# curl -X POST -H 'Content-Type:application/json' -d '{"root":"/workspace/test", "method":"local", "query":"why Musk is essential for OpenAI?","graphrag_api_base":"https://open.bigmodel.cn/api/paas/v4/", "graphrag_input_type":"text"}' http://192.168.0.20:38062/query
+# curl -X POST -H 'Content-Type:application/json' -d '{"root":"/workspace/test", "method":"local", "query":"why Musk is essential for OpenAI?","graphrag_api_base":"https://open.bigmodel.cn/api/paas/v4/", "graphrag_api_base_embedding":"https://open.bigmodel.cn/api/paas/v4/" "graphrag_input_type":"text"}' http://192.168.0.20:38062/query
 @app.post("/query",  response_class=PlainTextResponse)
 def query(req: GraphRAGQueryRequest):
     if req.root.strip() == "" or req.query.strip() == "":
@@ -68,6 +69,7 @@ def query(req: GraphRAGQueryRequest):
         raise HTTPException(status_code=400, detail="Param graphrag_api_base is required")
     
     os.environ["GRAPHRAG_API_BASE"] = req.graphrag_api_base
+    os.environ["GRAPHRAG_API_BASE_EMBEDDING"] = req.graphrag_api_base_embedding
     os.environ["GRAPHRAG_INPUT_FILE_TYPE"] = req.graphrag_input_type
     
     print(f"[query] request: {req}")
@@ -106,6 +108,7 @@ def query(req: GraphRAGQueryRequest):
         raise HTTPException(status_code=400, detail="Param graphrag_api_base is required")
     
     os.environ["GRAPHRAG_API_BASE"] = req.graphrag_api_base
+    os.environ["GRAPHRAG_API_BASE_EMBEDDING"] = req.graphrag_api_base_embedding
     os.environ["GRAPHRAG_INPUT_FILE_TYPE"] = req.graphrag_input_type
     
     print(f"[query] request: {req}")

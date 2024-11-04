@@ -10,7 +10,7 @@ from graphrag.index.progress.load_progress_reporter import load_progress_reporte
 from graphrag.index.api import build_index
 from graphrag.config import load_config
 
-# GRAPHRAG_API_BASE=http://192.168.0.20:38063/v1 GRAPHRAG_INPUT_FILE_TYPE=text python index.py --root /workspace/test --input /workspace/chn/ --lang chinese
+# GRAPHRAG_API_BASE=http://192.168.0.20:38063/v1 GRAPHRAG_API_BASE_EMBEDDING=http://192.168.0.20:38063/v1 GRAPHRAG_INPUT_FILE_TYPE=text python index.py --root /workspace/test --input /workspace/chn/ --lang chinese
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
