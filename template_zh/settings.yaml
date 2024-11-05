@@ -4,7 +4,7 @@ skip_workflows: []
 llm:
   api_key: ${GRAPHRAG_API_KEY}
   type: openai_chat # or azure_openai_chat
-  model: gpt-4-turbo-preview
+  model: gpt-4o
   model_supports_json: true # recommended if this is available for your model.
   max_tokens: 4096
   request_timeout: 300.0
@@ -37,7 +37,7 @@ embeddings:
   llm:
     api_key: ${GRAPHRAG_API_KEY}
     type: openai_embedding # or azure_openai_embedding
-    model: text-embedding-3-small
+    model: embedding-3
     api_base: ${GRAPHRAG_API_BASE_EMBEDDING}
     # api_version: 2024-02-15-preview
     # organization: <organization_id>
