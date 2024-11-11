@@ -1,8 +1,11 @@
 # graphrag-chinese
 
-支持**中文**🇨🇳🇨🇳🇨🇳的 microsoft graphrag，可以使用兼容OpenAI api的本地开源模型或者其他api  
+支持**中文**🇨🇳🇨🇳🇨🇳的 microsoft graphrag
 
 来自 [microsoft/graphrag](https://github.com/microsoft/graphrag), 使用版本为 **v0.3.3**  
+
+- 可以使用OpenAI协议兼容的中文大模型API，或者开源中文模型搭建的OpenAI协议兼容的API server
+- 使用开源模型搭建API server可以显著降低索引构建成本
 
 ## 与原生 graphrag 的区别
 - 定制的基于中文字符和标点符号的分词器
