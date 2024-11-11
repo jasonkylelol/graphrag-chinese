@@ -15,7 +15,7 @@
 
 ### index
 ```
-GRAPHRAG_API_BASE=GRAPHRAG_API_BASE GRAPHRAG_API_KEY=GRAPHRAG_API_KEY GRAPHRAG_INPUT_FILE_TYPE=text python index.py --root /working_root --input /input_files --lang chinese
+GRAPHRAG_API_BASE=GRAPHRAG_API_BASE GRAPHRAG_API_BASE_EMBEDDING=GRAPHRAG_API_BASE_EMBEDDING GRAPHRAG_API_KEY=GRAPHRAG_API_KEY GRAPHRAG_INPUT_FILE_TYPE=text python index.py --root /working_root --input /input_files --lang chinese
 ```
 
 GRAPHRAG_API_BASE: OpenAI api 兼容的服务  
@@ -46,5 +46,5 @@ body:
 可能需要设置api key: GRAPHRAG_API_KEY  
 调用示例:  
 ```
-curl -N -X POST -H 'Content-Type:application/json' -d '{"root":"/workspace/test", "method":"local", "query":"why Musk is essential for OpenAI?","graphrag_api_base":"https://open.bigmodel.cn/api/paas/v4/", "graphrag_input_type":"text"}' 'http://192.168.0.20:38062/query-streaming'
+curl -N -X POST -H 'Content-Type:application/json' -d '{"root":"/workspace/test", "method":"local", "query":"why Musk is essential for OpenAI?","graphrag_api_base":"http://api/v1", "graphrag_api_base_embedding": "http://api/v1", "graphrag_input_type":"text"}' 'http://192.168.0.20:38062/query-streaming'
 ```
