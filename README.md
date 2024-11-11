@@ -19,6 +19,7 @@ GRAPHRAG_API_BASE=GRAPHRAG_API_BASE GRAPHRAG_API_KEY=GRAPHRAG_API_KEY GRAPHRAG_I
 ```
 
 GRAPHRAG_API_BASE: OpenAI api 兼容的服务  
+GRAPHRAG_API_BASE_EMBEDDING: OpenAI api 兼容的embedding服务  
 GRAPHRAG_API_KEY: OpenAI api key  
 GRAPHRAG_INPUT_FILE_TYPE: graphrag input 类型, text/csv  
 
@@ -38,6 +39,7 @@ body:
     "method": "local",  # graphrag query method, can be local or global
     "query": "query prompt",
     "graphrag_api_base": "",  # OpenAI compatible api llm server
+    "graphrag_api_base_embedding": "", # OpenAI compatible api embedding server
     "graphrag_input_type": "text"  # graphrag input type, text or csv
 }
 ```
