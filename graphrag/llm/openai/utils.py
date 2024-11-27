@@ -89,7 +89,7 @@ def get_completion_llm_args(
     }
 
 
-def try_parse_json_object(input: str) -> tuple[str, dict]:
+def try_parse_json_object(input: str, clean_up = True) -> tuple[str, dict]:
     """JSON cleaning and formatting utilities."""
     # Sometimes, the LLM returns a json string with some extra description, this function will clean it up.
 
@@ -104,21 +104,22 @@ def try_parse_json_object(input: str) -> tuple[str, dict]:
         return input, result
 
     _pattern = r"\{(.*)\}"
-    _match = re.search(_pattern, input)
+    _match = re.search(_pattern, input, re.DOTALL)
     input = "{" + _match.group(1) + "}" if _match else input
 
     # Clean up json string.
-    input = (
-        input.replace("{{", "{")
-        .replace("}}", "}")
-        .replace('"[{', "[{")
-        .replace('}]"', "}]")
-        .replace("\\", " ")
-        .replace("\\n", " ")
-        .replace("\n", " ")
-        .replace("\r", "")
-        .strip()
-    )
+    if clean_up:
+        input = (
+            input.replace("{{", "{")
+            .replace("}}", "}")
+            .replace('"[{', "[{")
+            .replace('}]"', "}]")
+            .replace("\\", " ")
+            .replace("\\n", " ")
+            .replace("\n", " ")
+            .replace("\r", "")
+            .strip()
+        )
 
     # Remove JSON Markdown Frame
     if input.startswith("```json"):

@@ -15,10 +15,13 @@ import tiktoken
 
 import graphrag.config.defaults as defs
 from graphrag.index.typing import ErrorHandlerFn
-from graphrag.index.utils import clean_str
+from graphrag.index.utils.string import clean_str
 from graphrag.llm import CompletionLLM
-
-from .prompts import CONTINUE_PROMPT, GRAPH_EXTRACTION_PROMPT, LOOP_PROMPT
+from graphrag.prompts.index.entity_extraction import (
+    CONTINUE_PROMPT,
+    GRAPH_EXTRACTION_PROMPT,
+    LOOP_PROMPT,
+)
 
 DEFAULT_TUPLE_DELIMITER = "<|>"
 DEFAULT_RECORD_DELIMITER = "##"
@@ -47,8 +50,6 @@ class GraphExtractor:
     _entity_name_key: str
     _input_descriptions_key: str
     _extraction_prompt: str
-    _extraction_continue_prompt: str
-    _extraction_loop_prompt: str
     _summarization_prompt: str
     _loop_args: dict[str, Any]
     _max_gleanings: int
@@ -63,8 +64,6 @@ class GraphExtractor:
         entity_types_key: str | None = None,
         completion_delimiter_key: str | None = None,
         prompt: str | None = None,
-        continue_prompt: str | None = None,
-        loop_prompt: str | None = None,
         join_descriptions=True,
         encoding_model: str | None = None,
         max_gleanings: int | None = None,
@@ -82,8 +81,6 @@ class GraphExtractor:
         )
         self._entity_types_key = entity_types_key or "entity_types"
         self._extraction_prompt = prompt or GRAPH_EXTRACTION_PROMPT
-        self._extraction_continue_prompt = continue_prompt or CONTINUE_PROMPT
-        self._extraction_loop_prompt = loop_prompt or LOOP_PROMPT
         self._max_gleanings = (
             max_gleanings
             if max_gleanings is not None
@@ -96,9 +93,6 @@ class GraphExtractor:
         yes = encoding.encode("YES")
         no = encoding.encode("NO")
         self._loop_args = {"logit_bias": {yes[0]: 100, no[0]: 100}, "max_tokens": 1}
-
-        # print(f"[GraphExtractor] extraction_continue_prompt: {self._extraction_continue_prompt}")
-        # print(f"[GraphExtractor] extraction_loop_prompt: {self._extraction_loop_prompt}")
 
     async def __call__(
         self, texts: list[str], prompt_variables: dict[str, Any] | None = None
@@ -165,10 +159,11 @@ class GraphExtractor:
         )
         results = response.output or ""
 
+        ''' # we do not need continue extraction
         # Repeat to ensure we maximize entity count
         for i in range(self._max_gleanings):
             response = await self._llm(
-                self._extraction_continue_prompt, # CONTINUE_PROMPT,
+                CONTINUE_PROMPT,
                 name=f"extract-continuation-{i}",
                 history=response.history,
             )
@@ -179,13 +174,14 @@ class GraphExtractor:
                 break
 
             response = await self._llm(
-                self._extraction_loop_prompt, # LOOP_PROMPT,
+                LOOP_PROMPT,
                 name=f"extract-loopcheck-{i}",
                 history=response.history,
                 model_parameters=self._loop_args,
             )
             if response.output != "YES":
                 break
+        '''
 
         return results
 
@@ -236,8 +232,8 @@ class GraphExtractor:
                                 str(source_doc_id),
                             })
                         )
-                        node["entity_type"] = (
-                            entity_type if entity_type != "" else node["entity_type"]
+                        node["type"] = (
+                            entity_type if entity_type != "" else node["type"]
                         )
                     else:
                         graph.add_node(

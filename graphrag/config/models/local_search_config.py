@@ -11,6 +11,9 @@ import graphrag.config.defaults as defs
 class LocalSearchConfig(BaseModel):
     """The default configuration section for Cache."""
 
+    prompt: str | None = Field(
+        description="The local search prompt to use.", default=None
+    )
     text_unit_prop: float = Field(
         description="The text unit proportion.",
         default=defs.LOCAL_SEARCH_TEXT_UNIT_PROP,
@@ -48,8 +51,4 @@ class LocalSearchConfig(BaseModel):
     )
     llm_max_tokens: int = Field(
         description="The LLM maximum tokens.", default=defs.LOCAL_SEARCH_LLM_MAX_TOKENS
-    )
-    system_prompt: str = Field(
-        description="The local search system prompt.",
-        default=""
     )

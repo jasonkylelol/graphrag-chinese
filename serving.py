@@ -5,13 +5,15 @@ import json
 from typing import List, Literal, Optional, Union
 from pydantic import BaseModel, Field
 from fastapi import FastAPI, HTTPException, Response, Query
-from fastapi.responses import FileResponse, PlainTextResponse
-from graphrag.query.cli import run_global_search, run_local_search
-from graphrag.config import load_config
-from graphrag.query import api
+from fastapi.responses import FileResponse
+from pathlib import Path
 from datetime import datetime
 from sse_starlette.sse import EventSourceResponse
-from pathlib import Path
+
+from graphrag.config.load_config import load_config
+from graphrag.config.resolve_path import resolve_paths
+from graphrag.cli.query import _resolve_parquet_files
+import graphrag.api as api
 
 DEFAULT_COMMUNITY_LEVEL = 2
 DEFAULT_RESPONSE_TYPE = "Multiple Paragraphs"
@@ -21,8 +23,9 @@ svrs = []
 
 class GraphRAGQueryRequest(BaseModel):
     root: str
-    method: Literal["local", "global"]
+    method: Literal["local", "global", "drift"]
     query: str
+    streaming: bool
     graphrag_api_base: str
     graphrag_api_base_embedding: str
     graphrag_input_type: str
@@ -40,7 +43,7 @@ def extract_dir_name_datetime(folder_name):
 
 # curl 'http://192.168.0.20:38062/get-graphml?index=test1&filename=summarized_graph.graphml
 @app.get("/get-graphml")
-def get_graphml(
+async def get_graphml(
     index: str = Query(..., description="graph index root"),
     filename: str = Query("summarized_graph.graphml", description="filename to get")):
     output_path = os.path.join("/workspace", index, "output")
@@ -60,9 +63,9 @@ def get_graphml(
         raise HTTPException(status_code=404, detail="File not found")
 
 
-# curl -X POST -H 'Content-Type:application/json' -d '{"root":"/workspace/test", "method":"local", "query":"why Musk is essential for OpenAI?","graphrag_api_base":"https://open.bigmodel.cn/api/paas/v4/", "graphrag_api_base_embedding":"https://open.bigmodel.cn/api/paas/v4/" "graphrag_input_type":"text"}' http://192.168.0.20:38062/query
-@app.post("/query",  response_class=PlainTextResponse)
-def query(req: GraphRAGQueryRequest):
+# curl -X POST -H 'Content-Type:application/json' -d '{"root":"/workspace/test_en", "method":"local", "streaming": false, "query":"why Musk is essential for OpenAI?", "graphrag_api_base":"http://192.168.0.20:38060/v1", "graphrag_api_base_embedding":"http://192.168.0.20:38060/v1", "graphrag_input_type":"text"}' http://192.168.0.20:38062/query
+@app.post("/query")
+async def query(req: GraphRAGQueryRequest):
     if req.root.strip() == "" or req.query.strip() == "":
         raise HTTPException(status_code=400, detail="Invalid request")
     if req.graphrag_api_base.strip() == "":
@@ -72,92 +75,126 @@ def query(req: GraphRAGQueryRequest):
     os.environ["GRAPHRAG_API_BASE_EMBEDDING"] = req.graphrag_api_base_embedding
     os.environ["GRAPHRAG_INPUT_FILE_TYPE"] = req.graphrag_input_type
     
-    print(f"[query] request: {req}")
-    if req.method == "local":
-        resp, context_data = run_local_search(
-            config_filepath=None,
-            data_dir=None,
-            root_dir=req.root,
-            community_level=DEFAULT_COMMUNITY_LEVEL,
-            response_type=DEFAULT_RESPONSE_TYPE,
-            streaming=False,
+    print(f"[QUERY] request: {req}")
+
+    if req.streaming:
+        resp = run_query_streaming(
+            root=Path(req.root),
             query=req.query,
-        )
-    elif req.method == "global":
-        resp, context_data = run_global_search(
-            config_filepath=None,
-            data_dir=None,
-            root_dir=req.root,
-            community_level=DEFAULT_COMMUNITY_LEVEL,
-            response_type=DEFAULT_RESPONSE_TYPE,
-            streaming=False,
-            query=req.query,
-        )
-    else:
-        raise HTTPException(status_code=400, detail="Invalid request")
+            method=req.method
+            )
+        return EventSourceResponse(resp, media_type="text/event-stream")
     
+    resp = await run_query(
+        root=Path(req.root),
+        query=req.query,
+        method=req.method
+        )
+    if not resp:
+        raise HTTPException(status_code=500, detail="Internal error")
+    print(f"[QUERY] finished:\n{resp}\n")
+    return Response(content=resp, media_type="text/plain")
+
+
+async def run_query(
+    root: Path,
+    query: str,
+    method: str,
+    ):
+    resp = None
+    match method:
+        case "local":
+            resp = await run_local_search(
+                root_dir=root,
+                query=query,
+            )
+        case "global":
+            resp = await run_global_search(
+                root_dir=root,
+                query=query,
+            )
+        case "drift":
+            resp = await run_drift_search(
+                root_dir=root,
+                query=query,
+            )
+        case _:
+            raise HTTPException(status_code=400, detail="Invalid request")
     return resp
 
 
-# curl -N -X POST -H 'Content-Type:application/json' -d '{"root":"/workspace/test", "method":"local", "query":"why Musk is essential for OpenAI?","graphrag_api_base":"https://open.bigmodel.cn/api/paas/v4/", "graphrag_input_type":"text"}' 'http://192.168.0.20:38062/query-streaming'
-@app.post("/query-streaming")
-def query(req: GraphRAGQueryRequest):
-    if req.root.strip() == "" or req.query.strip() == "":
-        raise HTTPException(status_code=400, detail="Invalid request")
-    if req.graphrag_api_base.strip() == "":
-        raise HTTPException(status_code=400, detail="Param graphrag_api_base is required")
-    
-    os.environ["GRAPHRAG_API_BASE"] = req.graphrag_api_base
-    os.environ["GRAPHRAG_API_BASE_EMBEDDING"] = req.graphrag_api_base_embedding
-    os.environ["GRAPHRAG_INPUT_FILE_TYPE"] = req.graphrag_input_type
-    
-    print(f"[query] request: {req}")
-    if req.method == "local":
-        resp = local_query(
-            root_dir=req.root,
-            community_level=DEFAULT_COMMUNITY_LEVEL,
-            response_type=DEFAULT_RESPONSE_TYPE,
-            query=req.query,
-        )
-        return EventSourceResponse(resp, media_type="text/event-stream")
-    elif req.method == "global":
-        resp = global_query(
-            root_dir=req.root,
-            community_level=DEFAULT_COMMUNITY_LEVEL,
-            response_type=DEFAULT_RESPONSE_TYPE,
-            query=req.query,
-        )
-        return EventSourceResponse(resp, media_type="text/event-stream")
-    else:
-        raise HTTPException(status_code=400, detail="Invalid request")
-
-
-async def local_query(
-    root_dir: str,
-    community_level: int,
-    response_type: str,
+async def run_query_streaming(
+    root: Path,
     query: str,
-):
-    root = Path(root_dir).resolve()
+    method: str,
+    ):
+    match method:
+        case "local":
+            async for chunk in run_local_search_streaming(root_dir=root, query=query):
+                yield chunk
+        case "global":
+            async for chunk in run_global_search_streaming(root_dir=root, query=query):
+                yield chunk
+        case "drift":
+            raise HTTPException(status_code=400, detail="Drift streaming not support")
+        case _:
+            raise HTTPException(status_code=400, detail="Invalid request")
+
+
+async def build_local_request(root_dir: Path):
+    root = root_dir.resolve()
     config = load_config(root, None)
+    resolve_paths(config)
 
-    data_path = Path(config.storage.base_dir).resolve()
+    dataframe_dict = await _resolve_parquet_files(
+        root_dir=root_dir,
+        config=config,
+        parquet_list=[
+            "create_final_nodes.parquet",
+            "create_final_community_reports.parquet",
+            "create_final_text_units.parquet",
+            "create_final_relationships.parquet",
+            "create_final_entities.parquet",
+        ],
+        optional_list=[
+            "create_final_covariates.parquet",
+        ],
+    )
+    final_nodes: pd.DataFrame = dataframe_dict["create_final_nodes"]
+    final_community_reports: pd.DataFrame = dataframe_dict[
+        "create_final_community_reports"
+    ]
+    final_text_units: pd.DataFrame = dataframe_dict["create_final_text_units"]
+    final_relationships: pd.DataFrame = dataframe_dict["create_final_relationships"]
+    final_entities: pd.DataFrame = dataframe_dict["create_final_entities"]
+    final_covariates: pd.DataFrame | None = dataframe_dict["create_final_covariates"]
 
-    final_nodes = pd.read_parquet(data_path / "create_final_nodes.parquet")
-    final_community_reports = pd.read_parquet(
-        data_path / "create_final_community_reports.parquet"
+    return config, final_nodes, final_entities, final_community_reports, final_text_units,final_relationships, final_covariates
+
+
+async def run_local_search(root_dir: Path, query: str):
+    config, final_nodes, final_entities, final_community_reports, final_text_units,\
+        final_relationships, final_covariates = await build_local_request(root_dir)
+    
+    # not streaming
+    response, context_data = await api.local_search(
+        config=config,
+        nodes=final_nodes,
+        entities=final_entities,
+        community_reports=final_community_reports,
+        text_units=final_text_units,
+        relationships=final_relationships,
+        covariates=final_covariates,
+        community_level=DEFAULT_COMMUNITY_LEVEL,
+        response_type=DEFAULT_RESPONSE_TYPE,
+        query=query,
     )
-    final_text_units = pd.read_parquet(data_path / "create_final_text_units.parquet")
-    final_relationships = pd.read_parquet(
-        data_path / "create_final_relationships.parquet"
-    )
-    final_entities = pd.read_parquet(data_path / "create_final_entities.parquet")
-    final_covariates_path = data_path / "create_final_covariates.parquet"
-    final_covariates = (
-        pd.read_parquet(final_covariates_path)
-        if final_covariates_path.exists()
-        else None
-    )
+
+    return response
+
+
+async def run_local_search_streaming(root_dir: Path, query: str):
+    config, final_nodes, final_entities, final_community_reports, final_text_units, final_relationships, final_covariates = await build_local_request(root_dir)
 
     full_response = ""
     context_data = None
@@ -170,41 +207,69 @@ async def local_query(
         text_units=final_text_units,
         relationships=final_relationships,
         covariates=final_covariates,
-        community_level=community_level,
-        response_type=response_type,
+        community_level=DEFAULT_COMMUNITY_LEVEL,
+        response_type=DEFAULT_RESPONSE_TYPE,
         query=query,
     ):
         if get_context_data:
             context_data = stream_chunk
             get_context_data = False
-            print(f"context_data:\n{json.dumps(context_data, ensure_ascii=False)}\n")
         else:
             full_response += stream_chunk
-            yield stream_chunk
-    yield "[DONE]"
-    print(f"full_response:\n{full_response}\n")
+            yield(stream_chunk)
+    yield("[DONE]")
+    print(f"[QUERY] finished:\n{full_response}\n")
 
 
-async def global_query(
-    root_dir: str,
-    community_level: int,
-    response_type: str,
-    query: str,
-):
-    root = Path(root_dir).resolve()
+async def build_global_request(root_dir: Path):
+    root = root_dir.resolve()
     config = load_config(root, None)
+    resolve_paths(config)
 
-    data_path = Path(config.storage.base_dir).resolve()
+    dataframe_dict = await _resolve_parquet_files(
+        root_dir=root_dir,
+        config=config,
+        parquet_list=[
+            "create_final_nodes.parquet",
+            "create_final_entities.parquet",
+            "create_final_communities.parquet",
+            "create_final_community_reports.parquet",
+        ],
+        optional_list=[],
+    )
+    final_nodes: pd.DataFrame = dataframe_dict["create_final_nodes"]
+    final_entities: pd.DataFrame = dataframe_dict["create_final_entities"]
+    final_communities: pd.DataFrame = dataframe_dict["create_final_communities"]
+    final_community_reports: pd.DataFrame = dataframe_dict[
+        "create_final_community_reports"
+    ]
 
-    final_nodes: pd.DataFrame = pd.read_parquet(
-        data_path / "create_final_nodes.parquet"
+    return config, final_nodes, final_entities, final_communities, final_community_reports
+
+
+async def run_global_search(root_dir: Path, query: str,):
+    config, final_nodes, final_entities, final_communities,\
+        final_community_reports = await build_global_request(root_dir)
+    
+    # not streaming
+    response, context_data = await api.global_search(
+        config=config,
+        nodes=final_nodes,
+        entities=final_entities,
+        communities=final_communities,
+        community_reports=final_community_reports,
+        community_level=DEFAULT_COMMUNITY_LEVEL,
+        dynamic_community_selection=False,
+        response_type=DEFAULT_RESPONSE_TYPE,
+        query=query,
     )
-    final_entities: pd.DataFrame = pd.read_parquet(
-        data_path / "create_final_entities.parquet"
-    )
-    final_community_reports: pd.DataFrame = pd.read_parquet(
-        data_path / "create_final_community_reports.parquet"
-    )
+
+    return response
+
+
+async def run_global_search_streaming(root_dir: Path, query: str,):
+    config, final_nodes, final_entities, final_communities,\
+        final_community_reports = await build_global_request(root_dir)
 
     full_response = ""
     context_data = None
@@ -213,20 +278,69 @@ async def global_query(
         config=config,
         nodes=final_nodes,
         entities=final_entities,
+        communities=final_communities,
         community_reports=final_community_reports,
-        community_level=community_level,
-        response_type=response_type,
+        community_level=DEFAULT_COMMUNITY_LEVEL,
+        dynamic_community_selection=False,
+        response_type=DEFAULT_RESPONSE_TYPE,
         query=query,
     ):
         if get_context_data:
             context_data = stream_chunk
             get_context_data = False
-            print(f"context_data:\n{json.dumps(context_data, ensure_ascii=False)}\n")
+            
         else:
             full_response += stream_chunk
-            yield stream_chunk
-    yield "[DONE]"
-    print(f"full_response:\n{full_response}\n")
+            yield(stream_chunk)
+    yield("[DONE]")
+    print(f"[QUERY] finished:\n{full_response}\n")
+
+
+async def build_drift_search(root_dir: Path):
+    root = root_dir.resolve()
+    config = load_config(root, None)
+    resolve_paths(config)
+
+    dataframe_dict = await _resolve_parquet_files(
+        root_dir=root_dir,
+        config=config,
+        parquet_list=[
+            "create_final_nodes.parquet",
+            "create_final_community_reports.parquet",
+            "create_final_text_units.parquet",
+            "create_final_relationships.parquet",
+            "create_final_entities.parquet",
+        ],
+    )
+    final_nodes: pd.DataFrame = dataframe_dict["create_final_nodes"]
+    final_community_reports: pd.DataFrame = dataframe_dict[
+        "create_final_community_reports"
+    ]
+    final_text_units: pd.DataFrame = dataframe_dict["create_final_text_units"]
+    final_relationships: pd.DataFrame = dataframe_dict["create_final_relationships"]
+    final_entities: pd.DataFrame = dataframe_dict["create_final_entities"]
+
+    return config, final_nodes, final_entities, final_community_reports,\
+        final_text_units, final_relationships
+
+
+async def run_drift_search(root_dir: Path, query: str):
+    config, final_nodes, final_entities, final_community_reports,\
+        final_text_units, final_relationships = await build_drift_search(root_dir)
+
+    # not streaming
+    response, context_data = await api.drift_search(
+        config=config,
+        nodes=final_nodes,
+        entities=final_entities,
+        community_reports=final_community_reports,
+        text_units=final_text_units,
+        relationships=final_relationships,
+        community_level=DEFAULT_COMMUNITY_LEVEL,
+        query=query,
+    )
+
+    return response
 
 
 if __name__ == "__main__":
@@ -238,8 +352,8 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    config = uvicorn.Config(app=app, host='0.0.0.0', port=80)
-    server = uvicorn.Server(config)
+    conf = uvicorn.Config(app=app, host='0.0.0.0', port=80)
+    server = uvicorn.Server(conf)
     svrs.append(server)
     print(f"[GraphRAG] start api server...")
     server.run()

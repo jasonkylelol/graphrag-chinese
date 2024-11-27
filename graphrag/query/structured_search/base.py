@@ -6,12 +6,13 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 import pandas as pd
 import tiktoken
 
 from graphrag.query.context_builder.builders import (
+    DRIFTContextBuilder,
     GlobalContextBuilder,
     LocalContextBuilder,
 )
@@ -30,17 +31,26 @@ class SearchResult:
     # actual text strings that are in the context window, built from context_data
     context_text: str | list[str] | dict[str, str]
     completion_time: float
+    # total LLM calls and token usage
     llm_calls: int
     prompt_tokens: int
+    output_tokens: int
+    # breakdown of LLM calls and token usage
+    llm_calls_categories: dict[str, int] | None = None
+    prompt_tokens_categories: dict[str, int] | None = None
+    output_tokens_categories: dict[str, int] | None = None
 
 
-class BaseSearch(ABC):
+T = TypeVar("T", GlobalContextBuilder, LocalContextBuilder, DRIFTContextBuilder)
+
+
+class BaseSearch(ABC, Generic[T]):
     """The Base Search implementation."""
 
     def __init__(
         self,
         llm: BaseLLM,
-        context_builder: GlobalContextBuilder | LocalContextBuilder,
+        context_builder: T,
         token_encoder: tiktoken.Encoding | None = None,
         llm_params: dict[str, Any] | None = None,
         context_builder_params: dict[str, Any] | None = None,
@@ -74,5 +84,5 @@ class BaseSearch(ABC):
         self,
         query: str,
         conversation_history: ConversationHistory | None = None,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[str, None] | None:
         """Stream search for the given query."""

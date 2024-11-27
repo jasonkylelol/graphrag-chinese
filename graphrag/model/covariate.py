@@ -6,7 +6,7 @@
 from dataclasses import dataclass
 from typing import Any
 
-from .identified import Identified
+from graphrag.model.identified import Identified
 
 
 @dataclass
@@ -30,9 +30,6 @@ class Covariate(Identified):
     text_unit_ids: list[str] | None = None
     """List of text unit IDs in which the covariate info appears (optional)."""
 
-    document_ids: list[str] | None = None
-    """List of document IDs in which the covariate info appears (optional)."""
-
     attributes: dict[str, Any] | None = None
 
     @classmethod
@@ -41,11 +38,9 @@ class Covariate(Identified):
         d: dict[str, Any],
         id_key: str = "id",
         subject_id_key: str = "subject_id",
-        subject_type_key: str = "subject_type",
         covariate_type_key: str = "covariate_type",
-        short_id_key: str = "short_id",
+        short_id_key: str = "human_readable_id",
         text_unit_ids_key: str = "text_unit_ids",
-        document_ids_key: str = "document_ids",
         attributes_key: str = "attributes",
     ) -> "Covariate":
         """Create a new covariate from the dict data."""
@@ -53,9 +48,7 @@ class Covariate(Identified):
             id=d[id_key],
             short_id=d.get(short_id_key),
             subject_id=d[subject_id_key],
-            subject_type=d.get(subject_type_key, "entity"),
             covariate_type=d.get(covariate_type_key, "claim"),
             text_unit_ids=d.get(text_unit_ids_key),
-            document_ids=d.get(document_ids_key),
             attributes=d.get(attributes_key),
         )

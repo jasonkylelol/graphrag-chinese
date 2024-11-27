@@ -9,8 +9,7 @@ from dataclasses import dataclass
 from graphrag.index.typing import ErrorHandlerFn
 from graphrag.index.utils.tokens import num_tokens_from_string
 from graphrag.llm import CompletionLLM
-
-from .prompts import SUMMARIZE_PROMPT
+from graphrag.prompts.index.summarize_descriptions import SUMMARIZE_PROMPT
 
 # Max token size for input prompts
 DEFAULT_MAX_INPUT_TOKENS = 4_000
@@ -67,7 +66,7 @@ class SummarizeExtractor:
         result = ""
         if len(descriptions) == 0:
             result = ""
-        if len(descriptions) == 1:
+        elif len(descriptions) == 1:
             result = descriptions[0]
         else:
             result = await self._summarize_descriptions(items, descriptions)
@@ -87,7 +86,11 @@ class SummarizeExtractor:
         if not isinstance(descriptions, list):
             descriptions = [descriptions]
 
-            # Iterate over descriptions, adding all until the max input tokens is reached
+        # Sort description lists
+        if len(descriptions) > 1:
+            descriptions = sorted(descriptions)
+
+        # Iterate over descriptions, adding all until the max input tokens is reached
         usable_tokens = self._max_input_tokens - num_tokens_from_string(
             self._summarization_prompt
         )

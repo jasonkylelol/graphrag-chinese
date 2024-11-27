@@ -19,8 +19,8 @@ For each pair of related entities, extract the following information:
  
 3. Return output in English as a single list of all the entities and relationships identified in steps 1 and 2. Use **{record_delimiter}** as the list delimiter.
  
-4. When finished, output {completion_delimiter}
- 
+4. When finished, output {completion_delimiter}, Return NOTHING but the list of all the entities and relationships. Limit the maximum output size of the list to 20.
+
 ######################
 -Examples-
 ######################

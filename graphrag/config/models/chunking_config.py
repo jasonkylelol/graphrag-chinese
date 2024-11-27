@@ -23,16 +23,20 @@ class ChunkingConfig(BaseModel):
         description="The chunk strategy to use, overriding the default tokenization strategy",
         default=None,
     )
+    strategy_type: str | None = Field(
+        default=None, description="The strategy type to use."
+    )
     encoding_model: str | None = Field(
         default=None, description="The encoding model to use."
     )
 
     def resolved_strategy(self, encoding_model: str) -> dict:
         """Get the resolved chunking strategy."""
-        from graphrag.index.verbs.text.chunk import ChunkStrategyType
+        from graphrag.index.operations.chunk_text import ChunkStrategyType
 
         return self.strategy or {
-            "type": ChunkStrategyType.tokens,
+            # "type": ChunkStrategyType.tokens,
+            "type": self.strategy_type,
             "chunk_size": self.size,
             "chunk_overlap": self.overlap,
             "group_by_columns": self.group_by_columns,

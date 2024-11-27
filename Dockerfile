@@ -19,3 +19,6 @@ run pip uninstall -y graphrag
 add graphrag graphrag
 add template template
 add template_zh template_zh
+add index.py index.py
+add serving.py serving.py
+add init.py init.py

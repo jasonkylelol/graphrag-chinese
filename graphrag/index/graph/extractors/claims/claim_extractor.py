@@ -13,8 +13,7 @@ import tiktoken
 import graphrag.config.defaults as defs
 from graphrag.index.typing import ErrorHandlerFn
 from graphrag.llm import CompletionLLM
-
-from .prompts import (
+from graphrag.prompts.index.claim_extraction import (
     CLAIM_EXTRACTION_PROMPT,
     CONTINUE_PROMPT,
     LOOP_PROMPT,
@@ -152,7 +151,6 @@ class ClaimExtractor:
         subject = resolved_entities.get(subject, subject)
         claim["object_id"] = obj
         claim["subject_id"] = subject
-        claim["doc_id"] = document_id
         return claim
 
     async def _process_document(
@@ -200,10 +198,7 @@ class ClaimExtractor:
             if response.output != "YES":
                 break
 
-        result = self._parse_claim_tuples(results, prompt_args)
-        for r in result:
-            r["doc_id"] = f"{doc_index}"
-        return result
+        return self._parse_claim_tuples(results, prompt_args)
 
     def _parse_claim_tuples(
         self, claims: str, prompt_variables: dict
@@ -243,6 +238,5 @@ class ClaimExtractor:
                 "end_date": pull_field(5, claim_fields),
                 "description": pull_field(6, claim_fields),
                 "source_text": pull_field(7, claim_fields),
-                "doc_id": pull_field(8, claim_fields),
             })
         return result

@@ -8,8 +8,7 @@ from pathlib import Path
 from pydantic import Field
 
 import graphrag.config.defaults as defs
-
-from .llm_config import LLMConfig
+from graphrag.config.models.llm_config import LLMConfig
 
 
 class SummarizeDescriptionsConfig(LLMConfig):
@@ -28,7 +27,9 @@ class SummarizeDescriptionsConfig(LLMConfig):
 
     def resolved_strategy(self, root_dir: str) -> dict:
         """Get the resolved description summarization strategy."""
-        from graphrag.index.verbs.entities.summarize import SummarizeStrategyType
+        from graphrag.index.operations.summarize_descriptions import (
+            SummarizeStrategyType,
+        )
 
         return self.strategy or {
             "type": SummarizeStrategyType.graph_intelligence,

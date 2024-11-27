@@ -8,8 +8,7 @@ from pathlib import Path
 from pydantic import Field
 
 import graphrag.config.defaults as defs
-
-from .llm_config import LLMConfig
+from graphrag.config.models.llm_config import LLMConfig
 
 
 class ClaimExtractionConfig(LLMConfig):
@@ -38,7 +37,7 @@ class ClaimExtractionConfig(LLMConfig):
 
     def resolved_strategy(self, root_dir: str, encoding_model: str) -> dict:
         """Get the resolved claim extraction strategy."""
-        from graphrag.index.verbs.covariates.extract_covariates import (
+        from graphrag.index.operations.extract_covariates import (
             ExtractClaimsStrategyType,
         )
 

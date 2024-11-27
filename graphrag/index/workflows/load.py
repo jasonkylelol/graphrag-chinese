@@ -16,13 +16,18 @@ from graphrag.index.errors import (
     UndefinedWorkflowError,
     UnknownWorkflowError,
 )
-from graphrag.index.utils import topological_sort
-
-from .default_workflows import default_workflows as _default_workflows
-from .typing import VerbDefinitions, WorkflowDefinitions, WorkflowToRun
+from graphrag.index.utils.topological_sort import topological_sort
+from graphrag.index.workflows.default_workflows import (
+    default_workflows as _default_workflows,
+)
+from graphrag.index.workflows.typing import (
+    VerbDefinitions,
+    WorkflowDefinitions,
+    WorkflowToRun,
+)
 
 if TYPE_CHECKING:
-    from graphrag.index.config import (
+    from graphrag.index.config.workflow import (
         PipelineWorkflowConfig,
         PipelineWorkflowReference,
         PipelineWorkflowStep,
@@ -132,7 +137,6 @@ def create_workflow(
         **(additional_workflows or {}),
     }
     steps = steps or _get_steps_for_workflow(name, config, additional_workflows)
-    steps = _remove_disabled_steps(steps)
     return Workflow(
         verbs=additional_verbs or {},
         schema={
@@ -163,9 +167,3 @@ def _get_steps_for_workflow(
         raise UnknownWorkflowError(name)
 
     return workflows[name](config or {})
-
-
-def _remove_disabled_steps(
-    steps: list[PipelineWorkflowStep],
-) -> list[PipelineWorkflowStep]:
-    return [step for step in steps if step.get("enabled", True)]
