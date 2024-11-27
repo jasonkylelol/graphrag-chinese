@@ -41,19 +41,16 @@ def extract_dir_name_datetime(folder_name):
         return None
 
 
-# curl 'http://192.168.0.20:38062/get-graphml?index=test1&filename=summarized_graph.graphml
+# curl 'http://192.168.0.20:38062/get-graphml?index=test_zh&filename=summarized_graph.graphml'
 @app.get("/get-graphml")
 async def get_graphml(
     index: str = Query(..., description="graph index root"),
     filename: str = Query("summarized_graph.graphml", description="filename to get")):
+    if not filename.endswith(".graphml"):
+        raise HTTPException(status_code=404, detail="Only support graphml file")
     output_path = os.path.join("/workspace", index, "output")
     if os.path.exists(output_path):
-        subfolders = [f.path for f in os.scandir(output_path) if f.is_dir()]
-        latest_subfolder = max(
-            (folder for folder in subfolders if extract_dir_name_datetime(os.path.basename(folder))),
-            key=lambda folder: extract_dir_name_datetime(os.path.basename(folder))
-        )
-        target_graphml = os.path.join(latest_subfolder, f"artifacts/{filename}")
+        target_graphml = os.path.join(output_path, filename)
         print(f"target_graphml: {target_graphml}")
         if os.path.exists(target_graphml) and os.path.isfile(target_graphml):
             return FileResponse(target_graphml, media_type='application/xml')
