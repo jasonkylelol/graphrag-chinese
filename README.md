@@ -9,8 +9,8 @@
 
 ## 更新
 
-- `2024/11/27` 新增了 **DRIFT query** 模式，升级graphrag版本为 **v0.5.0**
-- `2024/09/13` 适配中文，graphrag版本为 **v0.3.3**
+- 🚀 `2024/11/27` 新增了 **DRIFT query** 模式，升级graphrag版本为 **v0.5.0**
+- 🚀 `2024/09/13` 适配中文，graphrag版本为 **v0.3.3**
 
 ## 与原生 graphrag 的区别
 - 定制的基于中文字符和标点符号的分词器
@@ -45,11 +45,12 @@ body:
     "query": "query prompt",
     "graphrag_api_base": "",  # OpenAI compatible api llm server
     "graphrag_api_base_embedding": "", # OpenAI compatible api embedding server
-    "graphrag_input_type": "text"  # graphrag input type, text or csv
+    "graphrag_input_type": "text",  # graphrag input type, text or csv
+    "streaming": false  # streaming output
 }
 ```
 可能需要设置api key: GRAPHRAG_API_KEY  
 调用示例:  
 ```
-curl -N -X POST -H 'Content-Type:application/json' -d '{"root":"/workspace/test", "method":"local", "query":"why Musk is essential for OpenAI?","graphrag_api_base":"http://api/v1", "graphrag_api_base_embedding": "http://api/v1", "graphrag_input_type":"text"}' 'http://192.168.0.20:38062/query-streaming'
+curl -N -X POST -H 'Content-Type:application/json' -d '{"root":"/workspace/test", "method":"local", "query":"why Musk is essential for OpenAI?","graphrag_api_base":"http://api/v1", "graphrag_api_base_embedding": "http://api/v1", "streaming": false, "graphrag_input_type":"text"}' 'http://192.168.0.20:38062/query'
 ```
