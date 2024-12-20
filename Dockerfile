@@ -16,6 +16,9 @@ add requirements.txt requirements.txt
 run pip install -r requirements.txt
 run pip uninstall -y graphrag
 
+add tiktoken/cl100k_base.tiktoken /root/.cache/tiktoken/9b5ad71b2ce5302211f9c61530b329a4922fc6a4
+env TIKTOKEN_CACHE_DIR=/root/.cache/tiktoken
+
 add graphrag graphrag
 add template template
 add template_zh template_zh
