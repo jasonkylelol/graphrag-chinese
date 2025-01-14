@@ -7,8 +7,8 @@
 from dataclasses import dataclass as dc_dataclass
 from dataclasses import field
 
-from graphrag.index.cache.pipeline_cache import PipelineCache
-from graphrag.index.storage.pipeline_storage import PipelineStorage
+from graphrag.cache.pipeline_cache import PipelineCache
+from graphrag.storage.pipeline_storage import PipelineStorage
 
 
 @dc_dataclass
@@ -37,10 +37,3 @@ class PipelineRunContext:
     "Long-term storage for pipeline verbs to use. Items written here will be written to the storage provider."
     cache: PipelineCache
     "Cache instance for reading previous LLM responses."
-    runtime_storage: PipelineStorage
-    "Runtime only storage for pipeline verbs to use. Items written here will only live in memory during the current run."
-
-
-# TODO: For now, just has the same props available to it
-VerbRunContext = PipelineRunContext
-"""Provides the context for the current verb run."""

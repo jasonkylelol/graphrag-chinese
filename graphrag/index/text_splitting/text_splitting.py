@@ -14,6 +14,7 @@ from typing import Any, Literal, cast
 import pandas as pd
 import tiktoken
 
+import graphrag.config.defaults as defs
 from graphrag.index.utils.tokens import num_tokens_from_string
 
 EncodedText = list[int]
@@ -88,7 +89,7 @@ class TokenTextSplitter(TextSplitter):
 
     def __init__(
         self,
-        encoding_name: str = "cl100k_base",
+        encoding_name: str = defs.ENCODING_MODEL,
         model_name: str | None = None,
         allowed_special: Literal["all"] | set[str] | None = None,
         disallowed_special: Literal["all"] | Collection[str] = "all",
@@ -122,7 +123,7 @@ class TokenTextSplitter(TextSplitter):
 
     def split_text(self, text: str | list[str]) -> list[str]:
         """Split text method."""
-        if cast(bool, pd.isna(text)) or text == "":
+        if cast("bool", pd.isna(text)) or text == "":
             return []
         if isinstance(text, list):
             text = " ".join(text)

@@ -12,7 +12,7 @@ INIT_YAML = f"""\
 ### LLM settings ###
 ## There are a number of settings to tune the threading and token limits for LLM calls - check the docs.
 
-encoding_model: cl100k_base # this needs to be matched to your model!
+encoding_model: {defs.ENCODING_MODEL} # this needs to be matched to your model!
 
 llm:
   api_key: ${{GRAPHRAG_API_KEY}} # set this in the generated .env file
@@ -33,7 +33,7 @@ async_mode: {defs.ASYNC_MODE.value} # or asyncio
 
 embeddings:
   async_mode: {defs.ASYNC_MODE.value} # or asyncio
-  vector_store:{defs.VECTOR_STORE}
+  vector_store: {defs.VECTOR_STORE}
   llm:
     api_key: ${{GRAPHRAG_API_KEY}}
     type: {defs.EMBEDDING_TYPE.value} # or azure_openai_embedding
@@ -63,7 +63,7 @@ chunks:
 ## connection_string and container_name must be provided
 
 cache:
-  type: {defs.CACHE_TYPE.value} # or blob
+  type: {defs.CACHE_TYPE.value} # one of [blob, cosmosdb, file]
   base_dir: "{defs.CACHE_BASE_DIR}"
 
 reporting:
@@ -71,7 +71,7 @@ reporting:
   base_dir: "{defs.REPORTING_BASE_DIR}"
 
 storage:
-  type: {defs.STORAGE_TYPE.value} # or blob
+  type: {defs.STORAGE_TYPE.value} # one of [blob, cosmosdb, file]
   base_dir: "{defs.STORAGE_BASE_DIR}"
 
 ## only turn this on if running `graphrag index` with custom settings
@@ -111,12 +111,10 @@ embed_graph:
   enabled: false # if true, will generate node2vec embeddings for nodes
 
 umap:
-  enabled: false # if true, will generate UMAP embeddings for nodes
+  enabled: false # if true, will generate UMAP embeddings for nodes (embed_graph must also be enabled)
 
 snapshots:
   graphml: false
-  raw_entities: false
-  top_level_nodes: false
   embeddings: false
   transient: false
 
@@ -134,6 +132,9 @@ global_search:
 
 drift_search:
   prompt: "prompts/drift_search_system_prompt.txt"
+
+basic_search:
+  prompt: "prompts/basic_search_system_prompt.txt"
 """
 
 INIT_DOTENV = """\

@@ -3,9 +3,23 @@
 
 """Parameterization settings for the default configuration."""
 
+from enum import Enum
+
 from pydantic import BaseModel, Field
 
 import graphrag.config.defaults as defs
+
+
+class ChunkStrategyType(str, Enum):
+    """ChunkStrategy class definition."""
+
+    tokens = "tokens"
+    sentence = "sentence"
+    chinese = "chinese"
+
+    def __repr__(self):
+        """Get a string representation."""
+        return f'"{self.value}"'
 
 
 class ChunkingConfig(BaseModel):
@@ -19,26 +33,9 @@ class ChunkingConfig(BaseModel):
         description="The chunk by columns to use.",
         default=defs.CHUNK_GROUP_BY_COLUMNS,
     )
-    strategy: dict | None = Field(
-        description="The chunk strategy to use, overriding the default tokenization strategy",
-        default=None,
+    strategy: ChunkStrategyType = Field(
+        description="The chunking strategy to use.", default=ChunkStrategyType.tokens
     )
-    strategy_type: str | None = Field(
-        default=None, description="The strategy type to use."
+    encoding_model: str = Field(
+        description="The encoding model to use.", default=defs.ENCODING_MODEL
     )
-    encoding_model: str | None = Field(
-        default=None, description="The encoding model to use."
-    )
-
-    def resolved_strategy(self, encoding_model: str) -> dict:
-        """Get the resolved chunking strategy."""
-        from graphrag.index.operations.chunk_text import ChunkStrategyType
-
-        return self.strategy or {
-            # "type": ChunkStrategyType.tokens,
-            "type": self.strategy_type,
-            "chunk_size": self.size,
-            "chunk_overlap": self.overlap,
-            "group_by_columns": self.group_by_columns,
-            "encoding_name": self.encoding_model or encoding_model,
-        }

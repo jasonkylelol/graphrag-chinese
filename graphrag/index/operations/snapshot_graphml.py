@@ -1,11 +1,11 @@
 # Copyright (c) 2024 Microsoft Corporation.
 # Licensed under the MIT License
 
-"""A module containing snapshot method definition."""
+"""A module containing snapshot_graphml method definition."""
 
 import networkx as nx
 
-from graphrag.index.storage.pipeline_storage import PipelineStorage
+from graphrag.storage.pipeline_storage import PipelineStorage
 
 
 async def snapshot_graphml(

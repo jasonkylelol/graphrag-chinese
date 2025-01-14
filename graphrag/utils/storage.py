@@ -5,49 +5,40 @@
 
 import logging
 from io import BytesIO
-from pathlib import Path
 
 import pandas as pd
 
-from graphrag.index.config.storage import (
-    PipelineFileStorageConfig,
-    PipelineStorageConfigTypes,
-)
-from graphrag.index.storage.load_storage import load_storage
-from graphrag.index.storage.pipeline_storage import PipelineStorage
+from graphrag.storage.pipeline_storage import PipelineStorage
 
 log = logging.getLogger(__name__)
 
 
-def _create_storage(
-    config: PipelineStorageConfigTypes | None, root_dir: Path
-) -> PipelineStorage:
-    """Create the storage for the pipeline.
-
-    Parameters
-    ----------
-    config : PipelineStorageConfigTypes
-        The storage configuration.
-    root_dir : str
-        The root directory.
-
-    Returns
-    -------
-    PipelineStorage
-        The pipeline storage.
-    """
-    return load_storage(
-        config or PipelineFileStorageConfig(base_dir=str(root_dir / "output"))
-    )
-
-
-async def _load_table_from_storage(name: str, storage: PipelineStorage) -> pd.DataFrame:
-    if not await storage.has(name):
-        msg = f"Could not find {name} in storage!"
+async def load_table_from_storage(name: str, storage: PipelineStorage) -> pd.DataFrame:
+    """Load a parquet from the storage instance."""
+    filename = f"{name}.parquet"
+    if not await storage.has(filename):
+        msg = f"Could not find {filename} in storage!"
         raise ValueError(msg)
     try:
-        log.info("read table from storage: %s", name)
-        return pd.read_parquet(BytesIO(await storage.get(name, as_bytes=True)))
+        log.info("reading table from storage: %s", filename)
+        return pd.read_parquet(BytesIO(await storage.get(filename, as_bytes=True)))
     except Exception:
-        log.exception("error loading table from storage: %s", name)
+        log.exception("error loading table from storage: %s", filename)
         raise
+
+
+async def write_table_to_storage(
+    table: pd.DataFrame, name: str, storage: PipelineStorage
+) -> None:
+    """Write a table to storage."""
+    await storage.set(f"{name}.parquet", table.to_parquet())
+
+
+async def delete_table_from_storage(name: str, storage: PipelineStorage) -> None:
+    """Delete a table to storage."""
+    await storage.delete(f"{name}.parquet")
+
+
+async def storage_has_table(name: str, storage: PipelineStorage) -> bool:
+    """Check if a table exists in storage."""
+    return await storage.has(f"{name}.parquet")

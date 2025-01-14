@@ -9,9 +9,9 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from datashaper import VerbCallbacks
 
-from graphrag.index.cache.pipeline_cache import PipelineCache
+from graphrag.cache.pipeline_cache import PipelineCache
+from graphrag.callbacks.workflow_callbacks import WorkflowCallbacks
 from graphrag.index.operations.embed_text.strategies.typing import TextEmbeddingStrategy
 from graphrag.utils.embeddings import create_collection_name
 from graphrag.vector_stores.base import BaseVectorStore, VectorStoreDocument
@@ -37,7 +37,7 @@ class TextEmbedStrategyType(str, Enum):
 
 async def embed_text(
     input: pd.DataFrame,
-    callbacks: VerbCallbacks,
+    callbacks: WorkflowCallbacks,
     cache: PipelineCache,
     embed_column: str,
     strategy: dict,
@@ -109,7 +109,7 @@ async def embed_text(
 
 async def _text_embed_in_memory(
     input: pd.DataFrame,
-    callbacks: VerbCallbacks,
+    callbacks: WorkflowCallbacks,
     cache: PipelineCache,
     embed_column: str,
     strategy: dict,
@@ -126,7 +126,7 @@ async def _text_embed_in_memory(
 
 async def _text_embed_with_vector_store(
     input: pd.DataFrame,
-    callbacks: VerbCallbacks,
+    callbacks: WorkflowCallbacks,
     cache: PipelineCache,
     embed_column: str,
     strategy: dict[str, Any],
@@ -217,7 +217,7 @@ def _create_vector_store(
     if collection_name:
         vector_store_config.update({"collection_name": collection_name})
 
-    vector_store = VectorStoreFactory.get_vector_store(
+    vector_store = VectorStoreFactory().create_vector_store(
         vector_store_type, kwargs=vector_store_config
     )
 

@@ -3,20 +3,18 @@
 
 """A workflow callback manager that emits updates."""
 
-from typing import Any
-
-from datashaper import ExecutionNode, NoopWorkflowCallbacks, Progress, TableContainer
-
-from graphrag.logging.base import ProgressReporter
+from graphrag.callbacks.noop_workflow_callbacks import NoopWorkflowCallbacks
+from graphrag.logger.base import ProgressLogger
+from graphrag.logger.progress import Progress
 
 
 class ProgressWorkflowCallbacks(NoopWorkflowCallbacks):
-    """A callbackmanager that delegates to a ProgressReporter."""
+    """A callbackmanager that delegates to a ProgressLogger."""
 
-    _root_progress: ProgressReporter
-    _progress_stack: list[ProgressReporter]
+    _root_progress: ProgressLogger
+    _progress_stack: list[ProgressLogger]
 
-    def __init__(self, progress: ProgressReporter) -> None:
+    def __init__(self, progress: ProgressLogger) -> None:
         """Create a new ProgressWorkflowCallbacks."""
         self._progress = progress
         self._progress_stack = [progress]
@@ -28,27 +26,17 @@ class ProgressWorkflowCallbacks(NoopWorkflowCallbacks):
         self._progress_stack.append(self._latest.child(name))
 
     @property
-    def _latest(self) -> ProgressReporter:
+    def _latest(self) -> ProgressLogger:
         return self._progress_stack[-1]
 
-    def on_workflow_start(self, name: str, instance: object) -> None:
+    def workflow_start(self, name: str, instance: object) -> None:
         """Execute this callback when a workflow starts."""
         self._push(name)
 
-    def on_workflow_end(self, name: str, instance: object) -> None:
+    def workflow_end(self, name: str, instance: object) -> None:
         """Execute this callback when a workflow ends."""
         self._pop()
 
-    def on_step_start(self, node: ExecutionNode, inputs: dict[str, Any]) -> None:
-        """Execute this callback every time a step starts."""
-        verb_id_str = f" ({node.node_id})" if node.has_explicit_id else ""
-        self._push(f"Verb {node.verb.name}{verb_id_str}")
-        self._latest(Progress(percent=0))
-
-    def on_step_end(self, node: ExecutionNode, result: TableContainer | None) -> None:
-        """Execute this callback every time a step ends."""
-        self._pop()
-
-    def on_step_progress(self, node: ExecutionNode, progress: Progress) -> None:
+    def progress(self, progress: Progress) -> None:
         """Handle when progress occurs."""
         self._latest(progress)

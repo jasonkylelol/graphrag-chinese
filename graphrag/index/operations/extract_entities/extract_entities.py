@@ -4,54 +4,38 @@
 """A module containing entity_extract methods."""
 
 import logging
-from enum import Enum
 from typing import Any
 
-import networkx as nx
 import pandas as pd
-from datashaper import (
-    AsyncType,
-    VerbCallbacks,
-    derive_from_rows,
-)
 
+from graphrag.cache.pipeline_cache import PipelineCache
+from graphrag.callbacks.workflow_callbacks import WorkflowCallbacks
+from graphrag.config.enums import AsyncType
 from graphrag.index.bootstrap import bootstrap
-from graphrag.index.cache.pipeline_cache import PipelineCache
-from graphrag.index.operations.extract_entities.strategies.typing import (
+from graphrag.index.operations.extract_entities.typing import (
     Document,
     EntityExtractStrategy,
+    ExtractEntityStrategyType,
 )
+from graphrag.index.run.derive_from_rows import derive_from_rows
 
 log = logging.getLogger(__name__)
-
-
-class ExtractEntityStrategyType(str, Enum):
-    """ExtractEntityStrategyType class definition."""
-
-    graph_intelligence = "graph_intelligence"
-    graph_intelligence_json = "graph_intelligence_json"
-    nltk = "nltk"
-
-    def __repr__(self):
-        """Get a string representation."""
-        return f'"{self.value}"'
 
 
 DEFAULT_ENTITY_TYPES = ["organization", "person", "geo", "event"]
 
 
 async def extract_entities(
-    input: pd.DataFrame,
-    callbacks: VerbCallbacks,
+    text_units: pd.DataFrame,
+    callbacks: WorkflowCallbacks,
     cache: PipelineCache,
     text_column: str,
     id_column: str,
-    to: str,
     strategy: dict[str, Any] | None,
     async_mode: AsyncType = AsyncType.AsyncIO,
     entity_types=DEFAULT_ENTITY_TYPES,
     num_threads: int = 4,
-) -> tuple[pd.DataFrame, list[nx.Graph]]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Extract entities from a piece of text.
 
@@ -86,10 +70,7 @@ async def extract_entities(
         tuple_delimiter: "<|>" # Optional, the delimiter to use for the LLM to mark a tuple
         record_delimiter: "##" # Optional, the delimiter to use for the LLM to mark a record
 
-        prechunked: true | false # Optional, If the document is already chunked beforehand, otherwise this will chunk the document into smaller bits. default: false
-        encoding_name: cl100k_base # Optional, The encoding to use for the LLM, if not already prechunked, default: cl100k_base
-        chunk_size: 1000 # Optional ,The chunk size to use for the LLM, if not already prechunked, default: 1200
-        chunk_overlap: 100 # Optional, The chunk overlap to use for the LLM, if not already prechunked, default: 100
+        encoding_name: cl100k_base # Optional, The encoding to use for the LLM with gleanings
 
         llm: # The configuration for the LLM
             type: openai # the type of llm to use, available options are: openai, azure, openai_chat, azure_openai_chat.  The last two being chat based LLMs.
@@ -135,36 +116,34 @@ async def extract_entities(
             strategy_config,
         )
         num_started += 1
-        return [result.entities, result.graph]
+        return [result.entities, result.relationships, result.graph]
 
     results = await derive_from_rows(
-        input,
+        text_units,
         run_strategy,
         callbacks,
-        scheduling_type=async_mode,
+        async_type=async_mode,
         num_threads=num_threads,
     )
 
-    to_result = []
-    graphs = []
+    entity_dfs = []
+    relationship_dfs = []
     for result in results:
         if result:
-            to_result.append(result[0])
-            graphs.append(result[1])
-        else:
-            to_result.append(None)
-            graphs.append(None)
+            entity_dfs.append(pd.DataFrame(result[0]))
+            relationship_dfs.append(pd.DataFrame(result[1]))
 
-    input[to] = to_result
+    entities = _merge_entities(entity_dfs)
+    relationships = _merge_relationships(relationship_dfs)
 
-    return (input.reset_index(drop=True), graphs)
+    return (entities, relationships)
 
 
 def _load_strategy(strategy_type: ExtractEntityStrategyType) -> EntityExtractStrategy:
     """Load strategy method definition."""
     match strategy_type:
         case ExtractEntityStrategyType.graph_intelligence:
-            from graphrag.index.operations.extract_entities.strategies.graph_intelligence import (
+            from graphrag.index.operations.extract_entities.graph_intelligence_strategy import (
                 run_graph_intelligence,
             )
 
@@ -173,7 +152,7 @@ def _load_strategy(strategy_type: ExtractEntityStrategyType) -> EntityExtractStr
         case ExtractEntityStrategyType.nltk:
             bootstrap()
             # dynamically import nltk strategy to avoid dependency if not used
-            from graphrag.index.operations.extract_entities.strategies.nltk import (
+            from graphrag.index.operations.extract_entities.nltk_strategy import (
                 run as run_nltk,
             )
 
@@ -181,3 +160,25 @@ def _load_strategy(strategy_type: ExtractEntityStrategyType) -> EntityExtractStr
         case _:
             msg = f"Unknown strategy: {strategy_type}"
             raise ValueError(msg)
+
+
+def _merge_entities(entity_dfs) -> pd.DataFrame:
+    all_entities = pd.concat(entity_dfs, ignore_index=True)
+    return (
+        all_entities.groupby(["title", "type"], sort=False)
+        .agg(description=("description", list), text_unit_ids=("source_id", list))
+        .reset_index()
+    )
+
+
+def _merge_relationships(relationship_dfs) -> pd.DataFrame:
+    all_relationships = pd.concat(relationship_dfs, ignore_index=False)
+    return (
+        all_relationships.groupby(["source", "target"], sort=False)
+        .agg(
+            description=("description", list),
+            text_unit_ids=("source_id", list),
+            weight=("weight", "sum"),
+        )
+        .reset_index()
+    )

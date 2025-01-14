@@ -57,7 +57,7 @@ chunks:
   size: 1000
   overlap: 100
   group_by_columns: [id]
-  strategy_type: "chinese"
+  strategy: "chinese"
 
 ### Storage settings ###
 ## If blob storage is specified in the following four sections,
@@ -88,7 +88,7 @@ skip_workflows: []
 entity_extraction:
   prompt: "prompts/entity_extraction.txt"
   entity_types: [organization,person,geo,event]
-  max_gleanings: 1
+  max_gleanings: 0
 
 summarize_descriptions:
   prompt: "prompts/summarize_descriptions.txt"
@@ -98,7 +98,7 @@ claim_extraction:
   enabled: false
   prompt: "prompts/claim_extraction.txt"
   description: "Any claims or facts that could be relevant to information discovery."
-  max_gleanings: 1
+  max_gleanings: 0
 
 community_reports:
   prompt: "prompts/community_report.txt"
@@ -157,3 +157,6 @@ drift_search:
   local_search_n: 1
   local_search_temperature: 0.1
   llm_temperature: 0.1
+
+basic_search:
+  prompt: "prompts/basic_search_system_prompt.txt"

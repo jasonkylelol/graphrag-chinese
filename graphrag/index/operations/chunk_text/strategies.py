@@ -4,25 +4,24 @@
 """A module containing chunk strategies."""
 
 from collections.abc import Iterable
-from typing import Any
 
 import nltk
 import tiktoken
-from datashaper import ProgressTicker
 
-import graphrag.config.defaults as defs
+from graphrag.config.models.chunking_config import ChunkingConfig
 from graphrag.index.operations.chunk_text.typing import TextChunk
 from graphrag.index.text_splitting.text_splitting import Tokenizer
 from graphrag.index.text_splitting.chinese_recursive_text_splitter import ChineseRecursiveTextSplitter
+from graphrag.logger.progress import ProgressTicker
 
 
 def run_chinese(
-    input: list[str], args: dict[str, Any], tick: ProgressTicker
+    input: list[str], config: ChunkingConfig, tick: ProgressTicker
 ) -> Iterable[TextChunk]:
     """Chunks text into chunks based on encoding tokens."""
-    tokens_per_chunk = args.get("chunk_size", defs.CHUNK_SIZE)
-    chunk_overlap = args.get("chunk_overlap", defs.CHUNK_OVERLAP)
-    encoding_name = args.get("encoding_name", defs.ENCODING_MODEL)
+    tokens_per_chunk = config.size
+    chunk_overlap = config.overlap
+    encoding_name = config.encoding_model
     enc = tiktoken.get_encoding(encoding_name)
 
     def encode(text: str) -> list[int]:
@@ -78,12 +77,12 @@ def _split_text_to_chinese(
 
 
 def run_tokens(
-    input: list[str], args: dict[str, Any], tick: ProgressTicker
+    input: list[str], config: ChunkingConfig, tick: ProgressTicker
 ) -> Iterable[TextChunk]:
     """Chunks text into chunks based on encoding tokens."""
-    tokens_per_chunk = args.get("chunk_size", defs.CHUNK_SIZE)
-    chunk_overlap = args.get("chunk_overlap", defs.CHUNK_OVERLAP)
-    encoding_name = args.get("encoding_name", defs.ENCODING_MODEL)
+    tokens_per_chunk = config.size
+    chunk_overlap = config.overlap
+    encoding_name = config.encoding_model
     enc = tiktoken.get_encoding(encoding_name)
 
     def encode(text: str) -> list[int]:
@@ -130,13 +129,11 @@ def _split_text_on_tokens(
     while start_idx < len(input_ids):
         chunk_text = enc.decode([id for _, id in chunk_ids])
         doc_indices = list({doc_idx for doc_idx, _ in chunk_ids})
-        n_tokens=len(chunk_ids)
-        # print(f"\n\n[_split_text_on_tokens] doc_indices:{doc_indices} n_tokens:{n_tokens}\n{chunk_text}\n\n")
         result.append(
             TextChunk(
                 text_chunk=chunk_text,
                 source_doc_indices=doc_indices,
-                n_tokens=n_tokens,
+                n_tokens=len(chunk_ids),
             )
         )
         start_idx += enc.tokens_per_chunk - enc.chunk_overlap
@@ -147,7 +144,7 @@ def _split_text_on_tokens(
 
 
 def run_sentences(
-    input: list[str], _args: dict[str, Any], tick: ProgressTicker
+    input: list[str], _config: ChunkingConfig, tick: ProgressTicker
 ) -> Iterable[TextChunk]:
     """Chunks text into multiple parts by sentence."""
     for doc_idx, text in enumerate(input):

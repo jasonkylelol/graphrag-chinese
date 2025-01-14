@@ -3,78 +3,51 @@
 
 """All the steps to transform final nodes."""
 
-from typing import Any, cast
-
 import pandas as pd
-from datashaper import (
-    VerbCallbacks,
-)
 
-from graphrag.index.operations.layout_graph import layout_graph
-from graphrag.index.operations.snapshot import snapshot
-from graphrag.index.operations.unpack_graph import unpack_graph
-from graphrag.index.storage.pipeline_storage import PipelineStorage
+from graphrag.callbacks.workflow_callbacks import WorkflowCallbacks
+from graphrag.config.models.embed_graph_config import EmbedGraphConfig
+from graphrag.index.operations.compute_degree import compute_degree
+from graphrag.index.operations.create_graph import create_graph
+from graphrag.index.operations.embed_graph.embed_graph import embed_graph
+from graphrag.index.operations.layout_graph.layout_graph import layout_graph
 
 
-async def create_final_nodes(
-    entity_graph: pd.DataFrame,
-    callbacks: VerbCallbacks,
-    storage: PipelineStorage,
-    layout_strategy: dict[str, Any],
-    level_for_node_positions: int,
-    snapshot_top_level_nodes_enabled: bool = False,
+def create_final_nodes(
+    base_entity_nodes: pd.DataFrame,
+    base_relationship_edges: pd.DataFrame,
+    base_communities: pd.DataFrame,
+    callbacks: WorkflowCallbacks,
+    embed_config: EmbedGraphConfig,
+    layout_enabled: bool,
 ) -> pd.DataFrame:
     """All the steps to transform final nodes."""
-    laid_out_entity_graph = cast(
-        pd.DataFrame,
-        layout_graph(
-            entity_graph,
-            callbacks,
-            layout_strategy,
-            embeddings_column="embeddings",
-            graph_column="clustered_graph",
-            to="node_positions",
-            graph_to="positioned_graph",
-        ),
-    )
-
-    nodes = cast(
-        pd.DataFrame,
-        unpack_graph(
-            laid_out_entity_graph, callbacks, column="positioned_graph", type="nodes"
-        ),
-    )
-
-    nodes_without_positions = nodes.drop(columns=["x", "y"])
-
-    nodes = nodes[nodes["level"] == level_for_node_positions].reset_index(drop=True)
-    nodes = cast(pd.DataFrame, nodes[["id", "x", "y"]])
-
-    if snapshot_top_level_nodes_enabled:
-        await snapshot(
-            nodes,
-            name="top_level_nodes",
-            storage=storage,
-            formats=["json"],
+    graph = create_graph(base_relationship_edges)
+    graph_embeddings = None
+    if embed_config.enabled:
+        graph_embeddings = embed_graph(
+            graph,
+            embed_config,
         )
-
-    joined = nodes_without_positions.merge(
-        nodes,
-        on="id",
-        how="inner",
-    )
-    joined.rename(columns={"label": "title", "cluster": "community"}, inplace=True)
-    joined["community"] = joined["community"].fillna(-1).astype(int)
-
-    # drop anything that isn't graph-related or needing to be preserved
-    # the rest can be looked up on the canonical entities table
-    joined.drop(
-        columns=["source_id", "type", "description", "size", "graph_embedding"],
-        inplace=True,
+    layout = layout_graph(
+        graph,
+        callbacks,
+        layout_enabled,
+        embeddings=graph_embeddings,
     )
 
-    deduped = joined.drop_duplicates(subset=["title", "community"])
-    return deduped.loc[
+    degrees = compute_degree(graph)
+
+    nodes = (
+        base_entity_nodes.merge(layout, left_on="title", right_on="label", how="left")
+        .merge(degrees, on="title", how="left")
+        .merge(base_communities, on="title", how="left")
+    )
+    nodes["level"] = nodes["level"].fillna(0).astype(int)
+    nodes["community"] = nodes["community"].fillna(-1).astype(int)
+    # disconnected nodes and those with no community even at level 0 can be missing degree
+    nodes["degree"] = nodes["degree"].fillna(0).astype(int)
+    return nodes.loc[
         :,
         [
             "id",

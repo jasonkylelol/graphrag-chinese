@@ -21,8 +21,7 @@ from graphrag.prompts.query.drift_search_system_prompt import (
 )
 from graphrag.query.llm.base import BaseTextEmbedding
 from graphrag.query.llm.oai.chat_openai import ChatOpenAI
-from graphrag.llm.openai.utils import try_parse_json_object
-from graphrag.query.llm.text_utils import num_tokens
+from graphrag.query.llm.text_utils import num_tokens, try_parse_json_object
 from graphrag.query.structured_search.base import SearchResult
 
 log = logging.getLogger(__name__)

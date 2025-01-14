@@ -3,52 +3,34 @@
 
 """All the steps to transform final relationships."""
 
-from typing import cast
-
 import pandas as pd
-from datashaper import (
-    VerbCallbacks,
-)
 
+from graphrag.index.operations.compute_degree import compute_degree
 from graphrag.index.operations.compute_edge_combined_degree import (
     compute_edge_combined_degree,
 )
-from graphrag.index.operations.unpack_graph import unpack_graph
+from graphrag.index.operations.create_graph import create_graph
 
 
 def create_final_relationships(
-    entity_graph: pd.DataFrame,
-    nodes: pd.DataFrame,
-    callbacks: VerbCallbacks,
+    base_relationship_edges: pd.DataFrame,
 ) -> pd.DataFrame:
     """All the steps to transform final relationships."""
-    graph_edges = unpack_graph(entity_graph, callbacks, "clustered_graph", "edges")
+    relationships = base_relationship_edges
 
-    graph_edges.rename(columns={"source_id": "text_unit_ids"}, inplace=True)
+    graph = create_graph(base_relationship_edges)
+    degrees = compute_degree(graph)
 
-    filtered = cast(
-        pd.DataFrame, graph_edges[graph_edges["level"] == 0].reset_index(drop=True)
-    )
-
-    pruned_edges = filtered.drop(columns=["level"])
-
-    filtered_nodes = nodes[nodes["level"] == 0].reset_index(drop=True)
-    filtered_nodes = cast(pd.DataFrame, filtered_nodes[["title", "degree"]])
-
-    pruned_edges["combined_degree"] = compute_edge_combined_degree(
-        pruned_edges,
-        filtered_nodes,
+    relationships["combined_degree"] = compute_edge_combined_degree(
+        relationships,
+        degrees,
         node_name_column="title",
         node_degree_column="degree",
         edge_source_column="source",
         edge_target_column="target",
     )
 
-    pruned_edges["text_unit_ids"] = pruned_edges["text_unit_ids"].str.split(",")
-
-    # TODO: Find duplication source
-    deduped = pruned_edges.drop_duplicates(subset=["source", "target"])
-    return deduped.loc[
+    return relationships.loc[
         :,
         [
             "id",

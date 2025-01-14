@@ -58,26 +58,30 @@ class DynamicCommunitySelection:
         self.reports = {report.community_id: report for report in community_reports}
         # mapping from community to sub communities
         self.node2children = {
-            community.id: (
+            community.short_id: (
                 []
                 if community.sub_community_ids is None
-                else community.sub_community_ids
+                else [str(x) for x in community.sub_community_ids]
             )
             for community in communities
+            if community.short_id is not None
         }
+
         # mapping from community to parent community
         self.node2parent: dict[str, str] = {
             sub_community: community
             for community, sub_communities in self.node2children.items()
             for sub_community in sub_communities
         }
+
         # mapping from level to communities
         self.levels: dict[str, list[str]] = {}
+
         for community in communities:
             if community.level not in self.levels:
                 self.levels[community.level] = []
-            if community.id in self.reports:
-                self.levels[community.level].append(community.id)
+            if community.short_id in self.reports:
+                self.levels[community.level].append(community.short_id)
 
         # start from root communities (level 0)
         self.starting_communities = self.levels["0"]
@@ -100,6 +104,7 @@ class DynamicCommunitySelection:
             "output_tokens": 0,
         }
         relevant_communities = set()
+
         while queue:
             gather_results = await asyncio.gather(*[
                 rate_relevancy(
@@ -180,5 +185,6 @@ class DynamicCommunitySelection:
             llm_info["prompt_tokens"],
             llm_info["output_tokens"],
         )
+
         llm_info["ratings"] = ratings
         return community_reports, llm_info

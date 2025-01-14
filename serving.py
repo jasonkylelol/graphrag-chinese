@@ -2,6 +2,7 @@ import sys, os, signal
 import uvicorn
 import pandas as pd
 import json
+import asyncio
 from typing import List, Literal, Optional, Union
 from pydantic import BaseModel, Field
 from fastapi import FastAPI, HTTPException, Response, Query
@@ -12,8 +13,11 @@ from sse_starlette.sse import EventSourceResponse
 
 from graphrag.config.load_config import load_config
 from graphrag.config.resolve_path import resolve_paths
-from graphrag.cli.query import _resolve_parquet_files
 import graphrag.api as api
+from graphrag.utils.storage import load_table_from_storage, storage_has_table
+from graphrag.index.create_pipeline_config import create_pipeline_config
+from graphrag.storage.factory import StorageFactory
+from graphrag.config.models.graph_rag_config import GraphRagConfig
 
 DEFAULT_COMMUNITY_LEVEL = 2
 DEFAULT_RESPONSE_TYPE = "Multiple Paragraphs"
@@ -23,7 +27,7 @@ svrs = []
 
 class GraphRAGQueryRequest(BaseModel):
     root: str
-    method: Literal["local", "global", "drift"]
+    method: Literal["local", "global", "drift", "basic"]
     query: str
     streaming: bool
     graphrag_api_base: str
@@ -115,6 +119,11 @@ async def run_query(
                 root_dir=root,
                 query=query,
             )
+        case "basic":
+            resp = await run_basic_search(
+                root_dir=root,
+                query=query,
+            )
         case _:
             raise HTTPException(status_code=400, detail="Invalid request")
     return resp
@@ -133,9 +142,12 @@ async def run_query_streaming(
             async for chunk in run_global_search_streaming(root_dir=root, query=query):
                 yield chunk
         case "drift":
-            raise HTTPException(status_code=400, detail="Drift streaming not support")
+            yield HTTPException(status_code=400, detail="Drift streaming not support")
+        case "basic":
+            async for chunk in run_basic_search_streaming(root_dir=root, query=query):
+                yield chunk
         case _:
-            raise HTTPException(status_code=400, detail="Invalid request")
+            yield HTTPException(status_code=400, detail="Invalid request")
 
 
 async def build_local_request(root_dir: Path):
@@ -143,18 +155,17 @@ async def build_local_request(root_dir: Path):
     config = load_config(root, None)
     resolve_paths(config)
 
-    dataframe_dict = await _resolve_parquet_files(
-        root_dir=root_dir,
+    dataframe_dict = await _resolve_output_files(
         config=config,
-        parquet_list=[
-            "create_final_nodes.parquet",
-            "create_final_community_reports.parquet",
-            "create_final_text_units.parquet",
-            "create_final_relationships.parquet",
-            "create_final_entities.parquet",
+        output_list=[
+            "create_final_nodes",
+            "create_final_community_reports",
+            "create_final_text_units",
+            "create_final_relationships",
+            "create_final_entities",
         ],
         optional_list=[
-            "create_final_covariates.parquet",
+            "create_final_covariates",
         ],
     )
     final_nodes: pd.DataFrame = dataframe_dict["create_final_nodes"]
@@ -223,17 +234,17 @@ async def build_global_request(root_dir: Path):
     config = load_config(root, None)
     resolve_paths(config)
 
-    dataframe_dict = await _resolve_parquet_files(
-        root_dir=root_dir,
+    dataframe_dict = await _resolve_output_files(
         config=config,
-        parquet_list=[
-            "create_final_nodes.parquet",
-            "create_final_entities.parquet",
-            "create_final_communities.parquet",
-            "create_final_community_reports.parquet",
+        output_list=[
+            "create_final_nodes",
+            "create_final_entities",
+            "create_final_communities",
+            "create_final_community_reports",
         ],
         optional_list=[],
     )
+
     final_nodes: pd.DataFrame = dataframe_dict["create_final_nodes"]
     final_entities: pd.DataFrame = dataframe_dict["create_final_entities"]
     final_communities: pd.DataFrame = dataframe_dict["create_final_communities"]
@@ -298,15 +309,14 @@ async def build_drift_search(root_dir: Path):
     config = load_config(root, None)
     resolve_paths(config)
 
-    dataframe_dict = await _resolve_parquet_files(
-        root_dir=root_dir,
+    dataframe_dict = await _resolve_output_files(
         config=config,
-        parquet_list=[
-            "create_final_nodes.parquet",
-            "create_final_community_reports.parquet",
-            "create_final_text_units.parquet",
-            "create_final_relationships.parquet",
-            "create_final_entities.parquet",
+        output_list=[
+            "create_final_nodes",
+            "create_final_community_reports",
+            "create_final_text_units",
+            "create_final_relationships",
+            "create_final_entities",
         ],
     )
     final_nodes: pd.DataFrame = dataframe_dict["create_final_nodes"]
@@ -338,6 +348,84 @@ async def run_drift_search(root_dir: Path, query: str):
     )
 
     return response
+
+
+async def build_basic_search(root_dir: Path):
+    root = root_dir.resolve()
+    config = load_config(root, None)
+    resolve_paths(config)
+
+    dataframe_dict = await _resolve_output_files(
+        config=config,
+        output_list=[
+            "create_final_text_units",
+        ],
+    )
+    final_text_units: pd.DataFrame = dataframe_dict["create_final_text_units"]
+
+    return config, final_text_units
+
+
+async def run_basic_search(root_dir: Path, query: str):
+    config, final_text_units = await build_basic_search(root_dir)
+
+    response, context_data = await api.basic_search(
+        config=config,
+        text_units=final_text_units,
+        query=query,
+    )
+    
+    return response
+
+
+async def run_basic_search_streaming(root_dir: Path, query: str):
+    config, final_text_units = await build_basic_search(root_dir)
+
+    full_response = ""
+    context_data = None
+    get_context_data = True
+    async for stream_chunk in api.basic_search_streaming(
+        config=config,
+        text_units=final_text_units,
+        query=query,
+    ):
+        if get_context_data:
+            context_data = stream_chunk
+            get_context_data = False
+        else:
+            full_response += stream_chunk
+            yield(stream_chunk)
+    yield("[DONE]")
+    print(f"[QUERY] finished:\n{full_response}\n")
+
+
+async def _resolve_output_files(
+    config: GraphRagConfig,
+    output_list: list[str],
+    optional_list: list[str] | None = None,
+) -> dict[str, pd.DataFrame]:
+    """Read indexing output files to a dataframe dict."""
+    dataframe_dict = {}
+    pipeline_config = create_pipeline_config(config)
+    storage_config = pipeline_config.storage.model_dump()  # type: ignore
+    storage_obj = StorageFactory().create_storage(
+        storage_type=storage_config["type"], kwargs=storage_config
+    )
+    for name in output_list:
+        df_value = await load_table_from_storage(name=name, storage=storage_obj)
+        dataframe_dict[name] = df_value
+
+    # for optional output files, set the dict entry to None instead of erroring out if it does not exist
+    if optional_list:
+        for optional_file in optional_list:
+            file_exists = await storage_has_table(optional_file, storage_obj)
+            if file_exists:
+                df_value = await load_table_from_storage(name=optional_file, storage=storage_obj)
+                dataframe_dict[optional_file] = df_value
+            else:
+                dataframe_dict[optional_file] = None
+
+    return dataframe_dict
 
 
 if __name__ == "__main__":

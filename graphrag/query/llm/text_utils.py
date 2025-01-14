@@ -3,16 +3,24 @@
 
 """Text Utilities for LLM."""
 
+import json
+import logging
+import re
 from collections.abc import Iterator
 from itertools import islice
 
 import tiktoken
+from json_repair import repair_json
+
+import graphrag.config.defaults as defs
+
+log = logging.getLogger(__name__)
 
 
 def num_tokens(text: str, token_encoder: tiktoken.Encoding | None = None) -> int:
     """Return the number of tokens in the given text."""
     if token_encoder is None:
-        token_encoder = tiktoken.get_encoding("cl100k_base")
+        token_encoder = tiktoken.get_encoding(defs.ENCODING_MODEL)
     return len(token_encoder.encode(text))  # type: ignore
 
 
@@ -36,7 +44,66 @@ def chunk_text(
 ):
     """Chunk text by token length."""
     if token_encoder is None:
-        token_encoder = tiktoken.get_encoding("cl100k_base")
+        token_encoder = tiktoken.get_encoding(defs.ENCODING_MODEL)
     tokens = token_encoder.encode(text)  # type: ignore
     chunk_iterator = batched(iter(tokens), max_tokens)
     yield from (token_encoder.decode(list(chunk)) for chunk in chunk_iterator)
+
+
+def try_parse_json_object(input: str, clean_up = True) -> tuple[str, dict]:
+    """JSON cleaning and formatting utilities."""
+    # Sometimes, the LLM returns a json string with some extra description, this function will clean it up.
+
+    result = None
+    try:
+        # Try parse first
+        result = json.loads(input)
+    except json.JSONDecodeError:
+        log.info("Warning: Error decoding faulty json, attempting repair")
+
+    if result:
+        return input, result
+
+    pattern = r"\{(.*)\}"
+    match = re.search(pattern, input, re.DOTALL)
+    input = "{" + match.group(1) + "}" if match else input
+
+    # Clean up json string.
+    if clean_up:
+        input = (
+            input.replace("{{", "{")
+            .replace("}}", "}")
+            .replace('"[{', "[{")
+            .replace('}]"', "}]")
+            .replace("\\", " ")
+            .replace("\\n", " ")
+            .replace("\n", " ")
+            .replace("\r", "")
+            .strip()
+        )
+
+    # Remove JSON Markdown Frame
+    if input.startswith("```json"):
+        input = input[len("```json") :]
+    if input.endswith("```"):
+        input = input[: len(input) - len("```")]
+
+    try:
+        result = json.loads(input)
+    except json.JSONDecodeError:
+        # Fixup potentially malformed json string using json_repair.
+        input = str(repair_json(json_str=input, return_objects=False))
+
+        # Generate JSON-string output using best-attempt prompting & parsing techniques.
+        try:
+            result = json.loads(input)
+        except json.JSONDecodeError:
+            log.exception("error loading json, json=%s", input)
+            return input, {}
+        else:
+            if not isinstance(result, dict):
+                log.exception(f"not expected dict type. type={type(result)} json={input}")
+                return input, {}
+            return input, result
+    else:
+        return input, result

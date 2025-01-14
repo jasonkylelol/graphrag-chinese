@@ -6,7 +6,7 @@
 import json
 import logging
 from typing import Any
-from graphrag.llm.openai.utils import try_parse_json_object
+from graphrag.query.llm.text_utils import try_parse_json_object
 
 log = logging.getLogger(__name__)
 

@@ -34,7 +34,7 @@ class DRIFTSearch(BaseSearch[DRIFTSearchContextBuilder]):
         self,
         llm: ChatOpenAI,
         context_builder: DRIFTSearchContextBuilder,
-        config: DRIFTSearchConfig | None,
+        config: DRIFTSearchConfig,
         token_encoder: tiktoken.Encoding | None = None,
         query_state: QueryState | None = None,
         primer_prompt: str | None = None,

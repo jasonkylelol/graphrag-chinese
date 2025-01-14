@@ -8,9 +8,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, NamedTuple
 
-from datashaper import VerbCallbacks
-
-from graphrag.index.cache.pipeline_cache import PipelineCache
+from graphrag.cache.pipeline_cache import PipelineCache
+from graphrag.callbacks.workflow_callbacks import WorkflowCallbacks
 
 StrategyConfig = dict[str, Any]
 
@@ -19,7 +18,7 @@ StrategyConfig = dict[str, Any]
 class SummarizedDescriptionResult:
     """Entity summarization result class definition."""
 
-    items: str | tuple[str, str]
+    id: str | tuple[str, str]
     description: str
 
 
@@ -27,7 +26,7 @@ SummarizationStrategy = Callable[
     [
         str | tuple[str, str],
         list[str],
-        VerbCallbacks,
+        WorkflowCallbacks,
         PipelineCache,
         StrategyConfig,
     ],

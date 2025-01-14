@@ -8,17 +8,18 @@ WARNING: This API is under development and may undergo changes in future release
 Backwards compatibility is not guaranteed at this time.
 """
 
-from pathlib import Path
+import logging
 
+from graphrag.cache.noop_pipeline_cache import NoopPipelineCache
+from graphrag.callbacks.factory import create_pipeline_reporter
+from graphrag.callbacks.workflow_callbacks import WorkflowCallbacks
 from graphrag.config.enums import CacheType
 from graphrag.config.models.graph_rag_config import GraphRagConfig
-from graphrag.index.cache.noop_pipeline_cache import NoopPipelineCache
-from graphrag.index.create_pipeline_config import create_pipeline_config
-from graphrag.index.emit.types import TableEmitterType
-from graphrag.index.run import run_pipeline_with_config
+from graphrag.index.run.run_workflows import run_workflows
 from graphrag.index.typing import PipelineRunResult
-from graphrag.logging.base import ProgressReporter
-from graphrag.vector_stores.factory import VectorStoreType
+from graphrag.logger.base import ProgressLogger
+
+log = logging.getLogger(__name__)
 
 
 async def build_index(
@@ -26,8 +27,8 @@ async def build_index(
     run_id: str = "",
     is_resume_run: bool = False,
     memory_profile: bool = False,
-    progress_reporter: ProgressReporter | None = None,
-    emit: list[TableEmitterType] = [TableEmitterType.Parquet],  # noqa: B006
+    callbacks: list[WorkflowCallbacks] | None = None,
+    progress_logger: ProgressLogger | None = None,
 ) -> list[PipelineRunResult]:
     """Run the pipeline with the given configuration.
 
@@ -39,15 +40,12 @@ async def build_index(
         The run id. Creates a output directory with this name.
     is_resume_run : bool default=False
         Whether to resume a previous index run.
-    is_update_run : bool default=False
-        Whether to update a previous index run.
     memory_profile : bool
         Whether to enable memory profiling.
-    progress_reporter : ProgressReporter | None default=None
-        The progress reporter.
-    emit : list[str]
-        The list of emitter types to emit.
-        Accepted values {"parquet", "csv"}.
+    callbacks : list[WorkflowCallbacks] | None default=None
+        A list of callbacks to register.
+    progress_logger : ProgressLogger | None default=None
+        The progress logger.
 
     Returns
     -------
@@ -60,51 +58,52 @@ async def build_index(
         msg = "Cannot resume and update a run at the same time."
         raise ValueError(msg)
 
-    # Ensure Parquet is part of the emitters
-    if TableEmitterType.Parquet not in emit:
-        emit.append(TableEmitterType.Parquet)
-
-    config = _patch_vector_config(config)
-
-    pipeline_config = create_pipeline_config(config)
     pipeline_cache = (
         NoopPipelineCache() if config.cache.type == CacheType.none is None else None
     )
+    # create a pipeline reporter and add to any additional callbacks
+    # TODO: remove the type ignore once the new config engine has been refactored
+    callbacks = callbacks or []
+    callbacks.append(create_pipeline_reporter(config.reporting, None))  # type: ignore
     outputs: list[PipelineRunResult] = []
-    async for output in run_pipeline_with_config(
-        pipeline_config,
-        run_id=run_id,
-        memory_profile=memory_profile,
+
+    if memory_profile:
+        log.warning("New pipeline does not yet support memory profiling.")
+
+    workflows = _get_workflows_list(config)
+
+    async for output in run_workflows(
+        workflows,
+        config,
         cache=pipeline_cache,
-        progress_reporter=progress_reporter,
-        emit=emit,
-        is_resume_run=is_resume_run,
+        callbacks=callbacks,
+        logger=progress_logger,
+        run_id=run_id,
         is_update_run=is_update_run,
     ):
         outputs.append(output)
-        if progress_reporter:
+        if progress_logger:
             if output.errors and len(output.errors) > 0:
-                progress_reporter.error(output.workflow)
+                progress_logger.error(output.workflow)
             else:
-                progress_reporter.success(output.workflow)
-            progress_reporter.info(str(output.result))
+                progress_logger.success(output.workflow)
+            progress_logger.info(str(output.result))
+
     return outputs
 
 
-def _patch_vector_config(config: GraphRagConfig):
-    """Back-compat patch to ensure a default vector store configuration."""
-    if not config.embeddings.vector_store:
-        config.embeddings.vector_store = {
-            "type": "lancedb",
-            "db_uri": "output/lancedb",
-            "container_name": "default",
-            "overwrite": True,
-        }
-    # TODO: must update filepath of lancedb (if used) until the new config engine has been implemented
-    # TODO: remove the type ignore annotations below once the new config engine has been refactored
-    vector_store_type = config.embeddings.vector_store["type"]  # type: ignore
-    if vector_store_type == VectorStoreType.LanceDB:
-        db_uri = config.embeddings.vector_store["db_uri"]  # type: ignore
-        lancedb_dir = Path(config.root_dir).resolve() / db_uri
-        config.embeddings.vector_store["db_uri"] = str(lancedb_dir)  # type: ignore
-    return config
+def _get_workflows_list(config: GraphRagConfig) -> list[str]:
+    return [
+        "create_base_text_units",
+        "create_final_documents",
+        "extract_graph",
+        "compute_communities",
+        "create_final_entities",
+        "create_final_relationships",
+        "create_final_nodes",
+        "create_final_communities",
+        *(["create_final_covariates"] if config.claim_extraction.enabled else []),
+        "create_final_text_units",
+        "create_final_community_reports",
+        "generate_text_embeddings",
+    ]
