@@ -42,7 +42,7 @@ body:
 ```
 {
     "root": "/working_root",
-    "method": "local",  # graphrag query method, can be local or global
+    "method": "local",  # graphrag query method, can be local, global, drift or basic
     "query": "query prompt",
     "graphrag_api_base": "",  # OpenAI compatible api llm server
     "graphrag_api_base_embedding": "", # OpenAI compatible api embedding server
