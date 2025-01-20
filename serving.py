@@ -49,7 +49,7 @@ def extract_dir_name_datetime(folder_name):
 @app.get("/get-graphml")
 async def get_graphml(
     index: str = Query(..., description="graph index root"),
-    filename: str = Query("summarized_graph.graphml", description="filename to get")):
+    filename: str = Query("graph.graphml", description="filename to get")):
     if not filename.endswith(".graphml"):
         raise HTTPException(status_code=404, detail="Only support graphml file")
     output_path = os.path.join("/workspace", index, "output")
