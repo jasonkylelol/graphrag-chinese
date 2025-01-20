@@ -60,6 +60,43 @@ def _register_signal_handlers(logger: ProgressLogger):
         signal.signal(signal.SIGHUP, handle_signal)
 
 
+def _run_index(workdir: str, resume):
+    logger = LoggerType("print")
+    progress_logger = LoggerFactory().create_logger(logger)
+    info, error, success = _logger(progress_logger)
+
+    root = Path(workdir).resolve()
+    config = load_config(root, None)
+
+    run_id = resume or time.strftime("%Y%m%d-%H%M%S")
+    resolve_paths(config, run_id)
+
+    info(f"\nStarting pipeline run for: {run_id}\n", True)
+    info(f"Using default configuration: {redact(config.model_dump())}", True)
+
+    _register_signal_handlers(progress_logger)
+
+    outputs = asyncio.run(
+        api.build_index(
+            config=config,
+            run_id=run_id,
+            is_resume_run=bool(resume),
+            memory_profile=False,
+            progress_logger=progress_logger,
+        )
+    )
+
+    encountered_errors = any(
+        output.errors and len(output.errors) > 0 for output in outputs
+    )
+    progress_logger.stop()
+
+    etime_str = time.strftime("%Y%m%d-%H%M%S")
+    success(f"Indexer finished at {etime_str} cost: {(time.time() - stime):.2f}", True)
+
+    sys.exit(1 if encountered_errors else 0)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
@@ -80,6 +117,17 @@ if __name__ == "__main__":
         help="Language for graphrag",
         type=str,
     )
+    parser.add_argument(
+        "--update",
+        help="Update an existing knowledge graph index",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--resume",
+        help="Resume a given indexing run",
+        type=str,
+        default=None,
+    )
     args = parser.parse_args()
 
     stime = time.time()
@@ -87,45 +135,19 @@ if __name__ == "__main__":
     workdir = os.path.join("/workspace", args.root)
     # os.makedirs(workdir, exist_ok=True)
 
-    if args.lang == "chinese":
-        shutil.copytree("template_zh", workdir, dirs_exist_ok=True)
-    else:
-        print(f"using default language: English")
-        shutil.copytree("template", workdir, dirs_exist_ok=True)
+    if not args.update:
+        if args.lang == "chinese":
+            print(f"Using language: Chinese")
+            shutil.copytree("template_zh", workdir, dirs_exist_ok=True)
+        else:
+            print(f"Using default language: English")
+            shutil.copytree("template", workdir, dirs_exist_ok=True)
     
     shutil.copytree(args.input, os.path.join(workdir, "input"), dirs_exist_ok=True)
 
-    logger = LoggerType
-    progress_logger = LoggerFactory().create_logger(logger)
-    info, error, success = _logger(progress_logger)
-
-    root = Path(workdir).resolve()
-    config = load_config(root, None)
-
-    run_id = time.strftime("%Y%m%d-%H%M%S")
-    resolve_paths(config, run_id)
-
-    print(f"\nStarting pipeline run for: {run_id}\n")
-    print(f"Using default configuration: {redact(config.model_dump())}")
-
-    _register_signal_handlers(progress_logger)
-
-    outputs = asyncio.run(
-        api.build_index(
-            config=config,
-            run_id=run_id,
-            is_resume_run=False,
-            memory_profile=False,
-            progress_logger=progress_logger,
-        )
-    )
-
-    encountered_errors = any(
-        output.errors and len(output.errors) > 0 for output in outputs
-    )
-    progress_logger.stop()
-
-    etime_str = time.strftime("%Y%m%d-%H%M%S")
-    print(f"Indexer finished at {etime_str} cost: {(time.time() - stime):.2f}")
-
-    sys.exit(1 if encountered_errors else 0)
+    if args.update:
+        print("Method: update")
+        _run_index(workdir, resume=False)
+    else:
+        print("Method: index")
+        _run_index(workdir, resume=args.resume)

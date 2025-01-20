@@ -33,6 +33,7 @@ GRAPHRAG_INPUT_FILE_TYPE: graphrag input 类型, text/csv
 --root: graphrag 工作目录  
 --input: index 用到的输入文件夹  
 --lang: 可选, 默认 english, 可用 chinese  
+--update: 可选，更新已有的知识图谱索引  
 ```
 
 ### query
