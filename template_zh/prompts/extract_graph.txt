@@ -1,0 +1,103 @@
+-目标-
+给定一个可能与此活动相关的文本和实体类型列表，从文本中识别出这些类型的所有实体以及已识别实体之间的所有关系。不要提取任何示例中的内容。
+
+-步骤-
+1. 识别所有实体。对于每个已识别的实体，提取以下信息:
+- entity_name: 实体名称
+- entity_type: 以下类型之一: [{entity_types}]
+- entity_description: 实体属性和活动的综合描述
+将每个实体格式化为 ("entity"{tuple_delimiter} <entity_name>{tuple_delimiter} <entity_type>{tuple_delimiter} <entity_description>)
+
+2. 从步骤 1 中识别的实体中，识别所有 *明显相关* 的 (source_entity, target_entity) 对。
+对于每对相关实体，提取以下信息:
+- source_entity: 源实体的名称，如步骤 1 中所述
+- target_entity: 目标实体的名称，如步骤 1 中所述
+- relationship_description: 解释您认为源实体和目标实体相互关联的原因
+- relationship_strength: 表示源实体和目标实体之间关系强度的数字分数
+将每个关系格式化为 ("relationship"{tuple_delimiter}<source_entity>{tuple_delimiter}<target_entity>{tuple_delimiter}<relationship_description>{tuple_delimiter}<relationship_strength>)
+
+3. 返回输出，作为步骤 1 和 2 中确定的所有实体和关系的单个列表。使用 **{record_delimiter}** 作为列表分隔符。
+
+4. 完成后，输出 {completion_delimiter}。仅返回所有实体和关系的列表，限制列表的最大输出大小为 20。
+
+######################
+-示例-
+######################
+示例 1:
+Entity_types: ORGANIZATION，PERSON
+Text:
+新西兰中央机构计划于周一和周四召开会议，该机构计划于周四下午 1:30 (太平洋夏令时间)发布其最新政策决定，随后将举行新闻发布会，中央机构主席马丁将回答问题。投资者预计市场策略委员会将维持基准利率在 3.5%-3.75% 的范围内。
+######################
+Output:
+("entity"{tuple_delimiter}中央机构{tuple_delimiter}组织{tuple_delimiter}中央机构是新西兰的联邦储备银行，该机构在周一和周四制定利率)
+{record_delimiter}
+("entity"{tuple_delimiter}马丁{tuple_delimiter}人员{tuple_delimiter}马丁是中央机构的主席)
+{record_delimiter}
+("entity"{tuple_delimiter}市场战略委员会{tuple_delimiter}组织{tuple_delimiter}中央机构委员会就利率和新西兰货币供应量的增长做出关键决策)
+{record_delimiter}
+("relationship"{tuple_delimiter}马丁{tuple_delimiter}中央机构{tuple_delimiter}马丁是中央机构的主席，将在新闻发布会上回答问题{tuple_delimiter}9)
+{completion_delimiter}
+
+######################
+示例 2:
+Entity_types: ORGANIZATION
+Text:
+泛美科技的股票在周四全球交易所的首日飙升。但 IPO 专家警告说，这家半导体公司在公开市场的首次亮相并不能代表其他新上市公司的表现。
+泛美科技是一家前上市公司，于 2014 年被远见控股私有化。这家知名芯片设计公司表示，它为 85% 的高端智能手机提供动力。
+######################
+Output:
+("entity"{tuple_delimiter}泛美科技{tuple_delimiter}ORGANIZATION{tuple_delimiter}泛美科技是目前在全球交易所上市的股票，为 85% 的高端智能手机提供动力)
+{record_delimiter}
+("entity"{tuple_delimiter}远见控股{tuple_delimiter}ORGANIZATION{tuple_delimiter}远见控股是一家之前拥有泛美科技的公司)
+{record_delimiter}
+("relationship"{tuple_delimiter}泛美科技{tuple_delimiter}远见控股{tuple_delimiter}远见控股 从 2014 年到现在拥有 泛美科技{tuple_delimiter}5)
+{completion_delimiter}
+
+
+#####################
+示例 3:
+Entity_types: ORGANIZATION, GEO, PERSON
+Text:
+五名奥雷利亚人被关押在菲鲁扎巴德 8 年，被广泛视为人质，他们正在返回奥雷利亚的途中。
+由昆塔拉策划的交换最终完成，菲鲁齐的 80 亿美元资金被转移到昆塔拉首都克罗哈拉的金融机构。
+此次交换始于菲鲁扎巴德首都蒂鲁齐亚，这四名男子和一名女子也是菲鲁齐国民，他们登上了飞往克罗哈拉的包机。
+他们受到奥雷利亚高级官员的欢迎，现在正前往奥雷利亚首都卡西翁。
+奥雷利亚人包括 39 岁的商人塞缪尔·纳马拉 (Samuel Namara)，他被关押在蒂鲁齐亚的阿尔哈米亚监狱，还有记者杜尔克·巴塔格拉尼 (Durke Bataglani)(59 岁)和环保主义者梅吉·塔兹巴 (Meggie Tazbah)(53 岁，同样拥有布拉蒂纳斯国籍)。
+######################
+Output:
+("entity"{tuple_delimiter}菲鲁扎巴德{tuple_delimiter}GEO{tuple_delimiter}菲鲁扎巴德将奥雷利亚人扣为人质)
+{record_delimiter}
+("entity"{tuple_delimiter}奥雷利亚{tuple_delimiter}GEO{tuple_delimiter}寻求释放人质的国家)
+{record_delimiter}
+("entity"{tuple_delimiter}昆塔拉{tuple_delimiter}GEO{tuple_delimiter}谈判以金钱交换人质的国家)
+{record_delimiter}
+{record_delimiter}
+("entity"{tuple_delimiter}蒂鲁齐亚{tuple_delimiter}GEO{tuple_delimiter}菲鲁扎巴德的首都，奥雷利亚人被扣为人质)
+{record_delimiter}
+("entity"{tuple_delimiter}克罗哈拉{tuple_delimiter}GEO{tuple_delimiter}昆塔拉 的首都)
+{record_delimiter}
+("entity"{tuple_delimiter}卡西翁{tuple_delimiter}GEO{tuple_delimiter}奥雷利亚 的首都)
+{record_delimiter}
+("entity"{tuple_delimiter}塞缪尔·纳马拉{tuple_delimiter}PERSON{tuple_delimiter}奥雷利亚人 在 蒂鲁齐亚 的 阿尔哈米亚监狱服刑)
+{record_delimiter}
+("entity"{tuple_delimiter}阿尔哈米亚监狱{tuple_delimiter}GEO{tuple_delimiter}蒂鲁齐亚监狱)
+{record_delimiter}
+("entity"{tuple_delimiter}杜尔克·巴塔格拉尼{tuple_delimiter}PERSON{tuple_delimiter}被扣为人质的 奥雷利亚人 记者)
+{record_delimiter}
+("entity"{tuple_delimiter}梅吉·塔兹巴{tuple_delimiter}PERSON{tuple_delimiter}被扣为人质的 布拉蒂纳斯 民族和环保主义者)
+{record_delimiter}
+("relationship"{tuple_delimiter}菲鲁扎巴德{tuple_delimiter}奥雷利亚{tuple_delimiter}菲鲁扎巴德 与 奥雷利亚{tuple_delimiter}2)
+{record_delimiter}
+("relationship"{tuple_delimiter}昆塔拉{tuple_delimiter}奥雷利亚{tuple_delimiter}昆塔拉 促成了 菲鲁扎巴德 和 奥雷利亚 之间的人质交换{tuple_delimiter}2)
+{record_delimiter}
+("relationship"{tuple_delimiter}昆塔拉{tuple_delimiter}菲鲁扎巴德{tuple_delimiter}昆塔拉 促成了 菲鲁扎巴德 和 奥雷利亚 之间的人质交换{tuple_delimiter}2)
+{record_delimiter}
+{completion_delimiter}
+
+######################
+-真实数据-
+######################
+Entity_types: {entity_types}
+Text: {input_text}
+######################
+输出:

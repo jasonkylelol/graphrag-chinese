@@ -50,7 +50,7 @@ def chunk_text(
     yield from (token_encoder.decode(list(chunk)) for chunk in chunk_iterator)
 
 
-def try_parse_json_object(input: str, clean_up = True) -> tuple[str, dict]:
+def try_parse_json_object(input: str, verbose: bool = True) -> tuple[str, dict]:
     """JSON cleaning and formatting utilities."""
     # Sometimes, the LLM returns a json string with some extra description, this function will clean it up.
 
@@ -59,7 +59,8 @@ def try_parse_json_object(input: str, clean_up = True) -> tuple[str, dict]:
         # Try parse first
         result = json.loads(input)
     except json.JSONDecodeError:
-        log.info("Warning: Error decoding faulty json, attempting repair")
+        if verbose:
+            log.info("Warning: Error decoding faulty json, attempting repair")
 
     if result:
         return input, result
@@ -69,18 +70,17 @@ def try_parse_json_object(input: str, clean_up = True) -> tuple[str, dict]:
     input = "{" + match.group(1) + "}" if match else input
 
     # Clean up json string.
-    if clean_up:
-        input = (
-            input.replace("{{", "{")
-            .replace("}}", "}")
-            .replace('"[{', "[{")
-            .replace('}]"', "}]")
-            .replace("\\", " ")
-            .replace("\\n", " ")
-            .replace("\n", " ")
-            .replace("\r", "")
-            .strip()
-        )
+    input = (
+        input.replace("{{", "{")
+        .replace("}}", "}")
+        .replace('"[{', "[{")
+        .replace('}]"', "}]")
+        .replace("\\", " ")
+        .replace("\\n", " ")
+        .replace("\n", " ")
+        .replace("\r", "")
+        .strip()
+    )
 
     # Remove JSON Markdown Frame
     if input.startswith("```json"):
@@ -98,11 +98,13 @@ def try_parse_json_object(input: str, clean_up = True) -> tuple[str, dict]:
         try:
             result = json.loads(input)
         except json.JSONDecodeError:
-            log.exception("error loading json, json=%s", input)
+            if verbose:
+                log.exception("error loading json, json=%s", input)
             return input, {}
         else:
             if not isinstance(result, dict):
-                log.exception(f"not expected dict type. type={type(result)} json={input}")
+                if verbose:
+                    log.exception("not expected dict type. type=%s:", type(result))
                 return input, {}
             return input, result
     else:

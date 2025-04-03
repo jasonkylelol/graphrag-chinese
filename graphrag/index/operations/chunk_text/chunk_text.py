@@ -55,19 +55,26 @@ def chunk_text(
     ```
     """
     strategy_exec = load_strategy(strategy)
-
+    
     print(f"\n[chunk_text] using strategy: {strategy}")
 
     num_total = _get_num_total(input, column)
     tick = progress_ticker(callbacks.progress, num_total)
+
     # collapse the config back to a single object to support "polymorphic" function call
     config = ChunkingConfig(size=size, overlap=overlap, encoding_model=encoding_model)
+
     return cast(
         "pd.Series",
         input.apply(
             cast(
                 "Any",
-                lambda x: run_strategy(strategy_exec, x[column], config, tick),
+                lambda x: run_strategy(
+                    strategy_exec,
+                    x[column],
+                    config,
+                    tick,
+                ),
             ),
             axis=1,
         ),
@@ -87,12 +94,7 @@ def run_strategy(
     # We can work with both just a list of text content
     # or a list of tuples of (document_id, text content)
     # text_to_chunk = '''
-    texts = []
-    for item in input:
-        if isinstance(item, str):
-            texts.append(item)
-        else:
-            texts.append(item[1])
+    texts = [item if isinstance(item, str) else item[1] for item in input]
 
     strategy_results = strategy_exec(texts, config, tick)
 
@@ -110,9 +112,10 @@ def run_strategy(
             ))
     return results
 
-
 def load_strategy(strategy: ChunkStrategyType) -> ChunkStrategy:
     """Load strategy method definition."""
+
+    
     match strategy:
         case ChunkStrategyType.tokens:
             from graphrag.index.operations.chunk_text.strategies import run_tokens
@@ -124,7 +127,7 @@ def load_strategy(strategy: ChunkStrategyType) -> ChunkStrategy:
             return run_chinese
         case ChunkStrategyType.sentence:
             # NLTK
-            from graphrag.index.bootstrap import bootstrap
+            from graphrag.index.operations.chunk_text.bootstrap import bootstrap
             from graphrag.index.operations.chunk_text.strategies import run_sentences
 
             bootstrap()

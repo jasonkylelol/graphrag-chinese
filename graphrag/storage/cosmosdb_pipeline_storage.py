@@ -7,6 +7,7 @@ import json
 import logging
 import re
 from collections.abc import Iterator
+from datetime import datetime, timezone
 from io import BytesIO, StringIO
 from typing import Any
 
@@ -18,7 +19,10 @@ from azure.identity import DefaultAzureCredential
 
 from graphrag.logger.base import ProgressLogger
 from graphrag.logger.progress import Progress
-from graphrag.storage.pipeline_storage import PipelineStorage
+from graphrag.storage.pipeline_storage import (
+    PipelineStorage,
+    get_timestamp_formatted_with_local_tz,
+)
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +38,7 @@ class CosmosDBPipelineStorage(PipelineStorage):
     _database_name: str
     _container_name: str
     _encoding: str
+    _no_id_prefixes: list[str]
 
     def __init__(
         self,
@@ -66,6 +71,7 @@ class CosmosDBPipelineStorage(PipelineStorage):
             if cosmosdb_account_url
             else None
         )
+        self._no_id_prefixes = []
         log.info(
             "creating cosmosdb storage with account: %s and database: %s and container: %s",
             self._cosmosdb_account_name,
@@ -140,7 +146,8 @@ class CosmosDBPipelineStorage(PipelineStorage):
             if file_filter is None:
                 return True
             return all(
-                re.match(value, item.get(key, "")) for key, value in file_filter.items()
+                re.search(value, item.get(key, ""))
+                for key, value in file_filter.items()
             )
 
         try:
@@ -165,7 +172,7 @@ class CosmosDBPipelineStorage(PipelineStorage):
                 return
             num_filtered = 0
             for item in items:
-                match = file_pattern.match(item["id"])
+                match = file_pattern.search(item["id"])
                 if match:
                     group = match.groupdict()
                     if item_filter(group):
@@ -208,6 +215,12 @@ class CosmosDBPipelineStorage(PipelineStorage):
                 items_df = pd.read_json(
                     StringIO(items_json_str), orient="records", lines=False
                 )
+
+                # Drop the "id" column if the original dataframe does not include it
+                # TODO: Figure out optimal way to handle missing id keys in input dataframes
+                if prefix in self._no_id_prefixes:
+                    items_df.drop(columns=["id"], axis=1, inplace=True)
+
                 return items_df.to_parquet()
             item = self._container_client.read_item(item=key, partition_key=key)
             item_body = item.get("body")
@@ -236,10 +249,12 @@ class CosmosDBPipelineStorage(PipelineStorage):
                     log.exception("Error converting output %s to json", key)
                 else:
                     cosmosdb_item_list = json.loads(value_json)
-                    for cosmosdb_item in cosmosdb_item_list:
-                        # Append an additional prefix to the id to force a unique identifier for the create_final_nodes rows
-                        if prefix == "create_final_nodes":
-                            prefixed_id = f"{prefix}-community_{cosmosdb_item['community']}:{cosmosdb_item['id']}"
+                    for index, cosmosdb_item in enumerate(cosmosdb_item_list):
+                        # If the id key does not exist in the input dataframe json, create a unique id using the prefix and item index
+                        # TODO: Figure out optimal way to handle missing id keys in input dataframes
+                        if "id" not in cosmosdb_item:
+                            prefixed_id = f"{prefix}:{index}"
+                            self._no_id_prefixes.append(prefix)
                         else:
                             prefixed_id = f"{prefix}:{cosmosdb_item['id']}"
                         cosmosdb_item["id"] = prefixed_id
@@ -313,6 +328,20 @@ class CosmosDBPipelineStorage(PipelineStorage):
     def _get_prefix(self, key: str) -> str:
         """Get the prefix of the filename key."""
         return key.split(".")[0]
+
+    async def get_creation_date(self, key: str) -> str:
+        """Get a value from the cache."""
+        try:
+            if not self._database_client or not self._container_client:
+                return ""
+            item = self._container_client.read_item(item=key, partition_key=key)
+            return get_timestamp_formatted_with_local_tz(
+                datetime.fromtimestamp(item["_ts"], tz=timezone.utc)
+            )
+
+        except Exception:
+            log.exception("Error getting key %s", key)
+            return ""
 
 
 # TODO remove this helper function and have the factory instantiate the class directly

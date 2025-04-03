@@ -12,17 +12,17 @@ import pandas as pd
 import tiktoken
 
 from graphrag.config.models.drift_search_config import DRIFTSearchConfig
-from graphrag.model.community_report import CommunityReport
-from graphrag.model.covariate import Covariate
-from graphrag.model.entity import Entity
-from graphrag.model.relationship import Relationship
-from graphrag.model.text_unit import TextUnit
+from graphrag.data_model.community_report import CommunityReport
+from graphrag.data_model.covariate import Covariate
+from graphrag.data_model.entity import Entity
+from graphrag.data_model.relationship import Relationship
+from graphrag.data_model.text_unit import TextUnit
+from graphrag.language_model.protocol.base import ChatModel, EmbeddingModel
 from graphrag.prompts.query.drift_search_system_prompt import (
     DRIFT_LOCAL_SYSTEM_PROMPT,
+    DRIFT_REDUCE_PROMPT,
 )
 from graphrag.query.context_builder.entity_extraction import EntityVectorStoreKey
-from graphrag.query.llm.base import BaseTextEmbedding
-from graphrag.query.llm.oai.chat_openai import ChatOpenAI
 from graphrag.query.structured_search.base import DRIFTContextBuilder
 from graphrag.query.structured_search.drift_search.primer import PrimerQueryProcessor
 from graphrag.query.structured_search.local_search.mixed_context import (
@@ -38,8 +38,8 @@ class DRIFTSearchContextBuilder(DRIFTContextBuilder):
 
     def __init__(
         self,
-        chat_llm: ChatOpenAI,
-        text_embedder: BaseTextEmbedding,
+        model: ChatModel,
+        text_embedder: EmbeddingModel,
         entities: list[Entity],
         entity_text_embeddings: BaseVectorStore,
         text_units: list[TextUnit] | None = None,
@@ -51,15 +51,19 @@ class DRIFTSearchContextBuilder(DRIFTContextBuilder):
         config: DRIFTSearchConfig | None = None,
         local_system_prompt: str | None = None,
         local_mixed_context: LocalSearchMixedContext | None = None,
+        reduce_system_prompt: str | None = None,
+        response_type: str | None = None,
         primer_expand_query_prompt: str | None = None,
     ):
         """Initialize the DRIFT search context builder with necessary components."""
         self.config = config or DRIFTSearchConfig()
-        self.chat_llm = chat_llm
+        self.model = model
         self.text_embedder = text_embedder
         self.token_encoder = token_encoder
         self.local_system_prompt = local_system_prompt or DRIFT_LOCAL_SYSTEM_PROMPT
+        self.reduce_system_prompt = reduce_system_prompt or DRIFT_REDUCE_PROMPT
         self.primer_expand_query_prompt = primer_expand_query_prompt
+
         self.entities = entities
         self.entity_text_embeddings = entity_text_embeddings
         self.reports = reports
@@ -67,6 +71,8 @@ class DRIFTSearchContextBuilder(DRIFTContextBuilder):
         self.relationships = relationships
         self.covariates = covariates
         self.embedding_vectorstore_key = embedding_vectorstore_key
+
+        self.response_type = response_type
 
         self.local_mixed_context = (
             local_mixed_context or self.init_local_context_builder()
@@ -158,7 +164,7 @@ class DRIFTSearchContextBuilder(DRIFTContextBuilder):
             and isinstance(query_embedding[0], type(embedding[0]))
         )
 
-    def build_context(
+    async def build_context(
         self, query: str, **kwargs
     ) -> tuple[pd.DataFrame, dict[str, int]]:
         """
@@ -186,15 +192,14 @@ class DRIFTSearchContextBuilder(DRIFTContextBuilder):
             raise ValueError(missing_reports_error)
 
         query_processor = PrimerQueryProcessor(
-            chat_llm=self.chat_llm,
+            chat_model=self.model,
             text_embedder=self.text_embedder,
             token_encoder=self.token_encoder,
             reports=self.reports,
             primer_expand_query_prompt=self.primer_expand_query_prompt,
-            llm_params=kwargs,
         )
 
-        query_embedding, token_ct = query_processor(query)
+        query_embedding, token_ct = await query_processor(query)
 
         report_df = self.convert_reports_to_df(self.reports)
 

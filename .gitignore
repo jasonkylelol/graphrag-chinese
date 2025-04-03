@@ -2,3 +2,4 @@ __pycache__
 ragtest
 docker_build.sh
 docker_run.sh
+.env

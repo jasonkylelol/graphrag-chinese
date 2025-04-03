@@ -1,6 +1,24 @@
 from graphrag.cli.initialize import initialize_project_at
-import sys
+import sys, argparse
+from dotenv import load_dotenv
+
+load_dotenv()
 
 if __name__ == "__main__":
-    root = sys.argv[1]
-    initialize_project_at(path=root)
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument(
+        "--root",
+        help="Working index directory",
+        required=True,
+        type=str,
+    )
+    parser.add_argument(
+        "--force",
+        help="Force initialization even if the project already exists",
+        type=bool,
+        default=False,
+    )
+    args = parser.parse_args()
+
+    initialize_project_at(path=args.root, force=args.force)

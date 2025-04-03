@@ -67,11 +67,9 @@ Add sections and commentary to the response as appropriate for the length and fo
 
 Additionally provide a score between 0 and 100 representing how well the response addresses the overall research question: {global_query}. Based on your response, suggest up to five follow-up questions that could be asked to further explore the topic as it relates to the overall research question. Do not include scores or follow up questions in the 'response' field of the JSON, add them to the respective 'score' and 'follow_up_queries' keys of the JSON output. Format your response in JSON with the following keys and values:
 
-{{
-    "response": <response>,
-    "score": <score>,
-    "follow_up_queries": <list_of_follow_up_queries>
-}}
+{{'response': str, Put your answer, formatted in markdown, here. Do not answer the global query in this section.
+'score': int,
+'follow_up_queries': List[str]}}
 """
 
 
@@ -108,7 +106,7 @@ If you decide to use general knowledge, you should add a delimiter stating that 
 
 ---Target response length and format---
 
-Multiple paragraphs
+{response_type}
 
 
 ---Goal---
@@ -135,8 +133,6 @@ If you decide to use general knowledge, you should add a delimiter stating that 
 
 Add sections and commentary to the response as appropriate for the length and format. Style the response in markdown. Now answer the following query using the data above:
 
-{query}
-
 """
 
 
@@ -145,7 +141,7 @@ This is a unique knowledge graph where edges are freeform text rather than verb 
 
 1. score: How well the intermediate answer addresses the query. A score of 0 indicates a poor, unfocused answer, while a score of 100 indicates a highly focused, relevant answer that addresses the query in its entirety.
 
-2. intermediate_answer: This answer should match the level of detail and length found in the community summaries. Must begin with a markdown header that explains how the following text is related to the query. Must escape all JSON delimiters(like {{, }}, [, ], : or , and line-breaks).
+2. intermediate_answer: This answer should match the level of detail and length found in the community summaries. The intermediate answer should be exactly 2000 characters long. This must be formatted in markdown and must begin with a header that explains how the following text is related to the query.
 
 3. follow_up_queries: A list of follow-up queries that could be asked to further explore the topic. These should be formatted as a list of strings. Generate at least five good follow-up queries.
 
@@ -161,15 +157,11 @@ The top-ranked community summaries:
 
 {community_reports}
 
-Provide the intermediate answer, and all scores in following:
+Provide the intermediate answer, and all scores in JSON format following:
 
-{{
-    "intermediate_answer": <intermediate_answer>,
-    "score": <score>,
-    "follow_up_queries": <list_of_follow_up_queries>
-}}
-
-Return JSON-formatted string only.
+{{'intermediate_answer': str,
+'score': int,
+'follow_up_queries': List[str]}}
 
 Begin:
 """

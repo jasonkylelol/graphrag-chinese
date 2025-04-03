@@ -1,0 +1,4 @@
+Create a hypothetical answer to the following query: {query}
+Format it to follow the structure of the template below:
+{template}
+Ensure that the hypothetical answer does not reference new named entities that are not present in the original query.

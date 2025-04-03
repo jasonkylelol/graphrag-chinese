@@ -5,20 +5,16 @@
 
 import numpy as np
 import pandas as pd
-from fnllm import ChatLLM
-from pydantic import TypeAdapter
 
-import graphrag.config.defaults as defs
 from graphrag.callbacks.noop_workflow_callbacks import NoopWorkflowCallbacks
 from graphrag.config.models.graph_rag_config import GraphRagConfig
-from graphrag.config.models.llm_parameters import LLMParameters
 from graphrag.index.input.factory import create_input
-from graphrag.index.llm.load_llm import load_llm_embeddings
-from graphrag.index.operations.chunk_text.chunk_text import chunk_text
+from graphrag.index.workflows.create_base_text_units import create_base_text_units
+from graphrag.language_model.manager import ModelManager
+from graphrag.language_model.protocol.base import EmbeddingModel
 from graphrag.logger.base import ProgressLogger
 from graphrag.prompt_tune.defaults import (
-    MIN_CHUNK_OVERLAP,
-    MIN_CHUNK_SIZE,
+    LIMIT,
     N_SUBSET_MAX,
     K,
 )
@@ -27,13 +23,13 @@ from graphrag.prompt_tune.types import DocSelectionType
 
 async def _embed_chunks(
     text_chunks: pd.DataFrame,
-    embedding_llm: ChatLLM,
+    embedding_llm: EmbeddingModel,
     n_subset_max: int = N_SUBSET_MAX,
 ) -> tuple[pd.DataFrame, np.ndarray]:
     """Convert text chunks into dense text embeddings."""
     sampled_text_chunks = text_chunks.sample(n=min(n_subset_max, len(text_chunks)))
-    embeddings = await embedding_llm(sampled_text_chunks["chunks"].tolist())
-    return text_chunks, np.array(embeddings.output.embeddings)
+    embeddings = await embedding_llm.aembed_batch(sampled_text_chunks["text"].tolist())
+    return text_chunks, np.array(embeddings)
 
 
 def _sample_chunks_from_embeddings(
@@ -55,37 +51,34 @@ async def load_docs_in_chunks(
     select_method: DocSelectionType,
     limit: int,
     logger: ProgressLogger,
-    chunk_size: int = MIN_CHUNK_SIZE,
+    chunk_size: int,
+    overlap: int,
     n_subset_max: int = N_SUBSET_MAX,
     k: int = K,
 ) -> list[str]:
     """Load docs into chunks for generating prompts."""
-    llm_config = TypeAdapter(LLMParameters).validate_python(
-        config.embeddings.resolved_strategy()["llm"]
+    embeddings_llm_settings = config.get_language_model_config(
+        config.embed_text.model_id
     )
 
     dataset = await create_input(config.input, logger, root)
-
-    # covert to text units
     chunk_config = config.chunks
-
-    # Use smaller chunks, to avoid huge prompts
-    dataset["chunks"] = chunk_text(
-        dataset,
-        column="text",
-        size=chunk_size,
-        overlap=MIN_CHUNK_OVERLAP,
-        encoding_model=defs.ENCODING_MODEL,
-        strategy=chunk_config.strategy,
+    chunks_df = create_base_text_units(
+        documents=dataset,
         callbacks=NoopWorkflowCallbacks(),
+        group_by_columns=chunk_config.group_by_columns,
+        size=chunk_size,
+        overlap=overlap,
+        encoding_model=chunk_config.encoding_model,
+        strategy=chunk_config.strategy,
+        prepend_metadata=chunk_config.prepend_metadata,
+        chunk_size_includes_metadata=chunk_config.chunk_size_includes_metadata,
     )
-
-    # Select chunks into a new df and explode it
-    chunks_df = pd.DataFrame(dataset["chunks"].explode())  # type: ignore
 
     # Depending on the select method, build the dataset
     if limit <= 0 or limit > len(chunks_df):
-        limit = len(chunks_df)
+        logger.warning(f"Limit out of range, using default number of chunks: {LIMIT}")  # noqa: G004
+        limit = LIMIT
 
     if select_method == DocSelectionType.TOP:
         chunks_df = chunks_df[:limit]
@@ -95,9 +88,10 @@ async def load_docs_in_chunks(
         if k is None or k <= 0:
             msg = "k must be an integer > 0"
             raise ValueError(msg)
-        embedding_llm = load_llm_embeddings(
-            "prompt_tuning_embeddings",
-            llm_config,
+        embedding_llm = ModelManager().register_embedding(
+            name="prompt_tuning_embeddings",
+            model_type=embeddings_llm_settings.type,
+            config=embeddings_llm_settings,
             callbacks=NoopWorkflowCallbacks(),
             cache=None,
         )
@@ -108,4 +102,4 @@ async def load_docs_in_chunks(
         chunks_df = _sample_chunks_from_embeddings(chunks_df, embeddings, k=k)
 
     # Convert the dataset to list form, so we have a list of documents
-    return chunks_df["chunks"].tolist()
+    return chunks_df["text"].tolist()
